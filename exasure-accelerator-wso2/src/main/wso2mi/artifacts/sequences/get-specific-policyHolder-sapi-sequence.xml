@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-specific-policyHolder-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyHolderId" expression="get-property('uri.var.policyHolderId')"/>
+        <property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;policyHolderId&quot;:&quot;', $ctx:policyHolderId, '&quot;}')"/>
+    </propertyGroup>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="get-specific-policyHolder-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started get-specific-policyHolder-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <mongodb.findOne configKey="MongoDB-Connection-PolicyHolder-API">
+        <collection>policyHolders</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>mongodb_findOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <payloadFactory description="Response poayload" media-type="json">
+                <format>
+                    $1
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property name="ERROR_CODE" scope="default" type="STRING" value="404"/>
+                <property name="ERROR_MESSAGE" scope="default" type="STRING" value="Not_Found"/>
+                <property name="ERROR_DETAIL" scope="default" type="STRING" value="Policy holder details not found in the system"/>
+                <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="404"/>
+            </propertyGroup>
+        <call-template description="Error Log" target="Common-Log-Template-V1">
+            <with-param name="service" value="policyHolder-api"/>
+            <with-param name="sequence" value="get-specific-policyHolder-sapi-sequence"/>
+            <with-param name="level" value="INFO"/>
+            <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/> 
+            <with-param name="status" value="ERROR"/>
+            </call-template>        
+            <sequence key="policyHolder-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="get-specific-policyHolder-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended get-specific-policyHolder-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="treasury-transactions-for-policySequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="treasury-sapi-api"/>
+        <with-param name="sequence" value="treasury-transactions-for-policySequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started treasury-transactions-for-policySequence"/>
+        <with-param name="status" value="START"/>
+</call-template>
+<property name="initPayload" expression="json-eval($)" scope="default" type="STRING"/>
+<payloadFactory media-type="json">
+    <format>
+{
+"$set":{
+"cashPosition.previousBalance.amountValue":$1,
+"cashPosition.totalBalance.amountValue":$2,
+"lastUpdatedDateTime":"$3",
+"paymentDateTime":"$4"
+}
+}
+    </format>
+    <args>
+        <arg evaluator="json" expression="$.cashPosition.previousBalance.amountValue"/>
+        <arg evaluator="json" expression="$.cashPosition.totalBalance.amountValue"/>
+        <arg evaluator="json" expression="$.lastUpdatedDateTime"/>
+        <arg evaluator="json" expression="$.paymentDateTime"/>
+    </args>
+</payloadFactory>
+<property name="mongoUpdate" expression="json-eval($)" type="STRING"/>
+<payloadFactory media-type="json">
+    <format>
+        {"treasuryAccountId": "TRS-000981"}
+    </format>
+    <args>
+    </args>
+</payloadFactory>
+<property name="mongoQuery" type="STRING" expression="json-eval($)"/>
+    <mongodb.updateOne configKey="MongoDB-Connection-Treasury-SAPI-API">
+        <collection>treasury</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <update>{$ctx:mongoUpdate}</update>
+        <upsert>False</upsert>
+        <collation></collation>
+        <arrayFilters></arrayFilters>
+        <responseVariable>mongodb_updateOne_524</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.updateOne>
+    <log level ="full"></log>
+    <filter source="json-eval($)" regex="^$">
+    <then>
+        <propertyGroup description="error details">
+            <property value="500" name="ERROR_CODE" scope="default" type="STRING"/>
+            <property value="Failed to update treasuryAccountId" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="Failed to update treasuryAccountId" name="ERROR_DETAIL" scope="default" type="STRING"/>
+        </propertyGroup>
+        <sequence key="treasury-sapi-fault-sequence"/>
+    </then>
+    </filter>
+    <script language="js"><![CDATA[
+var p = mc.getProperty("initPayload");
+
+if (typeof p === "string") {
+p = JSON.parse(p);
+}
+
+// remove fields
+delete p.createdDateTime;
+delete p.paymentDateTime;
+
+// add fields
+p.message = "Treasury balance updated successfully.";
+
+var now = new Date();
+
+function pad(n){
+return n < 10 ? "0"+n : n;
+}
+
+p.lastUpdatedDateTime =
+now.getFullYear() + "-" +
+pad(now.getMonth()+1) + "-" +
+pad(now.getDate()) + " " +
+pad(now.getHours()) + ":" +
+pad(now.getMinutes()) + ":" +
+pad(now.getSeconds());
+
+mc.setPayloadJSON(p);
+]]></script>
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="treasury-sapi-api"/>
+    <with-param name="sequence" value="treasury-transactions-for-policySequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="Ended treasury-transactions-for-policySequence"/>
+    <with-param name="status" value="END"/>
+</call-template>
+</sequence>

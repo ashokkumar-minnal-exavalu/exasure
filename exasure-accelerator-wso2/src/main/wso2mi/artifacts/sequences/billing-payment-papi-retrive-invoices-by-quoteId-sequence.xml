@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="billing-payment-papi-retrive-invoices-by-quoteId-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="quoteId" expression="get-property('uri.var.quoteId')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="billing-payment-papi"/>
+        <with-param name="sequence" value="billing-payment-papi-retrive-invoices-by-quoteId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Initiating billing-payment-papi-retrive-invoices-by-quoteId-sequence for quoteId- ', $ctx:uri.var.quoteId)}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="HTTP_METHOD" value="GET" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/invoices/fetch-all/', $ctx:quoteId)"/>
+    <call>
+        <endpoint key="invoice-sapi-restEndpoint"/>
+    </call>
+    <log category="INFO" logMessageID="false" logFullPayload="true">
+        <message>LOG</message>
+        <property name="quoteId" expression="json-eval($)"/>
+    </log>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="billing-payment-papi"/>
+        <with-param name="sequence" value="billing-payment-papi-retrive-invoices-by-quoteId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Ending billing-payment-papi-retrive-invoices-by-quoteId-sequence for quoteId- ', $ctx:uri.var.quoteId)}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-sapi-getAllClaimsSequence" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="getAllClaimsSequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating getAllClaimsSequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="claimQuery" value='{"claimRequest":{"$exists":true}}' scope="default" type="STRING"/>
+    <mongodb.find configKey="wso2DB">
+        <collection>Claims</collection>
+        <query>{$ctx:claimQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>claimDetailsResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+
+	<filter source="json-eval($.found)" regex="true">
+		<then>
+			<payloadFactory media-type="json">
+				<format>$1</format>
+				<args>
+                    <arg evaluator="json" expression="json-eval($)"/>
+                </args>
+            </payloadFactory>
+        </then>
+		<else>
+            <property name="HTTP_SC" value="404" scope="axis2"/>
+            <property name="timeStamp" expression="get-property('SYSTEM_DATE')" scope="default"/>
+			<payloadFactory media-type="json">
+				<format>
+                    {
+                    "isSuccessfull": false,
+                    "errorCode": "404",
+                    "errorMessage": "No claims records found",
+                    "errorDetails": "No claims record found",
+                    "transactionId": "$2",
+                    "timeStamp": "$3"
+                    }
+                </format>
+				<args>
+                    <arg evaluator="xml" expression="get-property('correlation_id')"/>
+                    <arg evaluator="xml" expression="$ctx:timeStamp"/>
+                </args>
+            </payloadFactory>
+        </else>
+    </filter>
+	<call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="getAllClaimsSequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending getAllClaimsSequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

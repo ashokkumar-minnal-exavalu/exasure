@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="policy-admin-papi-acceptPayment-reInstatement-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-acceptPayment-reInstatement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating policy-admin-papi-acceptPayment-reInstatement-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="policyStatusCode" expression="json-eval($.policyStatusCode)"/>
+    <property name="policyId" expression="get-property('uri.var.policyId')"/>
+    <property name="HTTP_METHOD" scope="axis2" value="GET"/>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-acceptPayment-reInstatement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending policy-admin-papi-acceptPayment-reInstatement-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/', get-property('policyId'))"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="policy-sapi-restEndpoint"/>
+    </call>
+    <filter source="json-eval($.policyStatusCode)" regex="PAYMENT_PENDING">
+        <then>
+            <!-- logic when condition is true -->
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "policyStatusCode": "$1"
+                    }
+                </format>
+                <args>
+                    <arg expression="get-property('policyStatusCode')"/>
+                </args>
+            </payloadFactory>
+            <propertyGroup description="inputProperty">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/policies/', get-property('policyId'), '/reinstatement/payment')"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="reinstatement-sapi-restEndpoint"/>
+            </call>
+        </then>
+        <else>
+            <!-- logic when condition is false -->
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "INVALID_POLICY_STATE",
+                    "errorMessage": "Payment cannot be created.",
+                    "errorDetails": "Policy is not in PAYMENT_PENDING status. Payment can only be initiated when policy status is PAYMENT_PENDING.",
+                    "policyId": "$1",
+                    "currentPolicyStatus": "$2",
+                    "allowedStatus": "PAYMENT_PENDING"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.policyNumber"/>
+                    <arg evaluator="json" expression="$.policyStatusCode"/>
+                </args>
+            </payloadFactory>
+        </else>
+    </filter>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-acceptPayment-reInstatement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending policy-admin-papi-acceptPayment-reInstatement-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

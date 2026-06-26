@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/policy-admin-papi" name="poilcy-admin-api" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/api/{policyNumber}">
+        <inSequence>
+            <sequence key="get-specific-policy-admin-papi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/policy/{policyNumber}/issuance">
+        <inSequence>
+            <sequence key="patch-issue-specific-policy-admin-papi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/policy/{policyNumber}/cancellation">
+        <inSequence>
+            <sequence key="patch-cancel-specific-policy-admin-papi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/all/policy">
+        <inSequence>
+            <sequence key="get-all-policies-admin-papi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/policyholder/{policyHolderId}/policies">
+        <inSequence>
+            <sequence key="get-policies-against-policyHolder-admin-papi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/document/{documentId}">
+        <inSequence>
+            <sequence key="poicy-admin-papi-getdocument-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/policies/{policyNumber}/documents">
+        <inSequence>
+            <sequence key="policy-admin-papi-createpolicy-document-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/quotes/documents">
+        <inSequence>
+            <sequence key="policy-admin-papi-createquote-document-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policies/{policyId}/endorsements">
+         <inSequence>
+            <sequence key="policy-admin-papi-create-endorsement-sequence"/>
+        </inSequence>
+         <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/quote">
+        <inSequence>
+            <sequence key="policy-admin-papi-create-quote-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/quote/{quoteId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-quote-by-quoteId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/quote/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-quote-by-policyHolderId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/quote/{quoteId}/accept">
+        <inSequence>
+            <sequence key="policy-admin-papi-accept-quote-by-quoteId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/quote/{quoteId}/discard">
+        <inSequence>
+            <sequence key="policy-admin-papi-discard-quote-by-quoteId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/quote/{quoteId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-update-quote-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource> 
+     <resource methods="PATCH" uri-template="/endorsement/{endorsementId}/accept">
+         <inSequence>
+            <sequence key="policy-admin-papi-accept-endorsement-sequence"/>
+        </inSequence>
+         <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource> 
+    <resource methods="GET" uri-template="/api/policies/{policyId}/endorsements">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-all-endorsements-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/endorsements/{endorsementId}/validate">
+        <inSequence>
+            <sequence key="policy-admin-papi-validate-endorsement-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/endorsements/{endorsementId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-endorsement-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+     <resource methods="POST" uri-template="/api/policies/{policyId}/reinstatement">
+        <inSequence>
+            <sequence key="policy-admin-papi-create-reInstatement-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/policies/{policyId}/reinstatement/accept">
+        <inSequence>
+            <sequence key="policy-admin-papi-accept-reInstatement-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/policies/reinstatement/{reInstatementId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-reInstatement-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policies/{policyNumber}/renewal">
+        <inSequence>
+            <sequence key="post-policy-renewal-papi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/renewals/{renewalId}">
+        <inSequence>
+            <sequence key="get-policy-renewal-papi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/renewals/{renewalId}">
+        <inSequence>
+            <sequence key="patch-policy-renewal-papi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>   
+     <resource methods="PATCH" uri-template="/endorsement/{endorsementId}/discard">
+         <inSequence>
+            <sequence key="policy-admin-papi-discard-endorsement-sequence"/>
+        </inSequence>
+         <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/endorsements/{endorsementId}/issue">
+        <inSequence>
+            <sequence key="policy-admin-papi-issue-endorsement-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/policies/{policyId}/reinstatement/payment">
+        <inSequence>
+            <sequence key="policy-admin-papi-acceptPayment-reInstatement-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/fetch-vehicles/{quoteId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-vehicles-by-quoteId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/vehicles/{insurableObjectIdentifier}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-vehicles-by-insurableObjectIdentifier-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/vehicles">
+        <inSequence>
+            <sequence key="policy-admin-papi-create-vehicle-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/drivers/{driverId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-retrieve-driver-by-driverId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/quote/{quoteId}/drivers">
+        <inSequence>
+            <sequence key="policy-admin-papi-retrieve-driver-by-quoteId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/drivers/{driverId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-update-driver-by-driverId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/drivers">
+        <inSequence>
+            <sequence key="policy-admin-papi-add-driver-details-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>    
+</api>

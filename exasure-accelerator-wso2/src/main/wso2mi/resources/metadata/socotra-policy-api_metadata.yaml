@@ -1,0 +1,10 @@
+---
+key: "socotra-policy-api-1.0.0"
+name : "socotra-policy-api"
+displayName : "socotra-policy-api"
+description: "socotra-policy-api"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/socotra-policy-api/api"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

@@ -1,0 +1,10 @@
+---
+key: "billing-account-sapi-1.0.0"
+name : "billing-account-sapi"
+displayName : "billing-account-sapi"
+description: "billing-account-sapi"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/billing-account-sapi"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

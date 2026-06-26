@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-getAllClaimsSequence" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="claim-papi-getAllClaimsSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Initiating claim-papi-getAllClaimsSequence"/>
+		<with-param name="status" value="START"/>
+	</call-template>
+	<propertyGroup description="inputProperties">
+		<property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+		<property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/claim"/>
+	</propertyGroup>
+	<call>
+		<endpoint key="claim-sapi-restEndpoint"/>
+	</call>
+	<property name="claimsCount" expression="json-eval($.data.length())" scope="default" type="STRING"/>
+	<filter source="$ctx:claimsCount" regex="^[1-9]\d*$">
+		<then>
+			<property name="claimRequests" expression="json-eval($.data[*].claimRequest)" scope="default" type="STRING"/>
+			<payloadFactory media-type="json">
+				<format>
+					$1
+				</format>
+				<args>
+					<arg evaluator="json" expression="$ctx:claimRequests"/>
+				</args>
+			</payloadFactory>
+		</then>
+		<else>
+			<!-- NO CLAIMS FOUND -->
+			<script language="js"><![CDATA[
+    var errorResponse = {
+        errorCode: "404",
+        errorMessage: "No claims found",
+        errorDetails: "No claims are available for the given request",
+        timeStamp: new Date().toISOString()
+    };
+
+    mc.setProperty("HTTP_SC", "404");
+    mc.setPayloadJSON(errorResponse);
+]]></script>
+			<respond/>
+		</else>
+	</filter>
+	<call-template target="Common-Log-Template-V1" description="end-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="claim-papi-getAllClaimsSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Ending claim-papi-getAllClaimsSequence"/>
+		<with-param name="status" value="END"/>
+	</call-template>
+	<!-- PayloadFactory is OPTIONAL for GET passthrough -->
+	<respond/>
+</sequence>

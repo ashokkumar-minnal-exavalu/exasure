@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="agent-compensations-sapi-agentstatementquoteSequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="agent-compensation-sapi-api"/>
+        <with-param name="sequence" value="agent-compensations-sapi-agentstatementquoteSequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started agent-compensations-sapi-agentstatementquoteSequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <payloadFactory media-type="json">
+    <format>
+        {"quoteId": "$1"}
+    </format>
+    <args>
+        <arg expression="get-property('quoteId')" evaluator="xml"/>
+    </args>
+</payloadFactory>
+<property name="mongoQuery" type="STRING" expression="json-eval($)"/>
+<log><property name="mongoQuery" type="STRING" expression="json-eval($)"/>
+    </log>
+    <mongodb.find configKey="MongoDB-Connection-AgentCompensation-sapi-API">
+        <collection>agentStatements</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_512</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+    <log level="full">
+    <property name="Payloadaftermongo" expression="json-eval($)"/>
+</log>
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+    <then>
+        <log level="full">
+    <property name="Payload" expression="json-eval($)"/>
+</log>
+<script language="js"><![CDATA[
+var payload = mc.getPayloadJSON();
+
+for (var i = 0; i < payload.data.length; i++) {
+delete payload.data[i]._id;
+}
+
+mc.setPayloadJSON(payload.data);
+]]></script>
+    </then>
+    <else>
+        <propertyGroup description="error details">
+            <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+        <property name="HTTP_SC" value="404" scope="axis2"/>
+            <property value="data not found for given quoteId" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="Data not found for given quoteId in database" name="ERROR_DETAIL" scope="default" type="STRING"/>
+        </propertyGroup>
+        <sequence key="agent-compensation-sapi-fault-sequence"/>
+        </else>
+
+</filter>
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="agent-compensation-sapi-api"/>
+    <with-param name="sequence" value="agent-compensations-sapi-agentstatementquoteSequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="Ended agent-compensations-sapi-agentstatementquoteSequence"/>
+    <with-param name="status" value="END"/>
+</call-template>
+</sequence>

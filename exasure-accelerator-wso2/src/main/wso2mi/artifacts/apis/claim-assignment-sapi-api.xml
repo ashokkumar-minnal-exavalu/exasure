@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/claim-assignment-sapi" name="claim-assignment-sapi-api" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="POST" uri-template="/api/adjusters">
+        <inSequence>
+            <sequence key="post-adjuster-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/adjusters">
+        <inSequence>
+            <sequence key="get-all-adjuster-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>    
+    <resource methods="GET" uri-template="/api/adjusters/{adjusterId}">
+        <inSequence>
+            <sequence key="get-specific-adjuster-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim/{claimId}/assign">
+        <inSequence>
+            <sequence key="post-assignment-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim/{claimId}/assign">
+        <inSequence>
+            <sequence key="get-assignment-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>          
+</api>

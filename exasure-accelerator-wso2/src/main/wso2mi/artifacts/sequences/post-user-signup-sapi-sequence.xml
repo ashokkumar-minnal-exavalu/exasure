@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="post-user-signup-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="user-api"/>
+        <with-param name="sequence" value="post-user-signup-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started post-user-signup-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <mongodb.insertOne configKey="user-Mongo-Connection">
+        <collection>users</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>mongodb_insertOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+    <property name="insertedCount" expression="json-eval($.insertedCount)" scope="default"/>    
+    <filter xpath="$ctx:insertedCount = 1">
+        <then>
+            <payloadFactory media-type="json">
+                <format>
+                   $1
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property value="500" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Internal Server Error" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="MongoDB Insertion is not Successfull" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="500"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="user-api"/>
+                <with-param name="sequence" value="post-user-signup-papi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/> 
+                <with-param name="status" value="ERROR"/>
+            </call-template>                    
+            <sequence key="user-sapi-fault-sequence"/>            
+        </else>
+    </filter>   
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="user-api"/>
+        <with-param name="sequence" value="post-user-signup-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended post-user-signup-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

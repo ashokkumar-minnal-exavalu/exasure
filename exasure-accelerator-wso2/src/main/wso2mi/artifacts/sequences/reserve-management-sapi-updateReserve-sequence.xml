@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="reserve-management-sapi-updateReserve-sequence" xmlns="http://ws.apache.org/ns/synapse">
+   <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')"/>
+        <property name="requestPayload" expression="json-eval($)"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="reserve-management-sapi"/>
+        <with-param name="sequence" value="reserve-management-sapi-updateReserve-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started reserve-management-sapi-updateReserve-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+<script language="js"><![CDATA[
+var payload =  mc.getPayloadJSON() || {};
+
+var currentDate = new Date();
+var formattedDate = currentDate.getFullYear() + "-" +
+    ("0" + (currentDate.getMonth()+1)).slice(-2) + "-" +
+    ("0" + currentDate.getDate()).slice(-2);
+
+payload.reserveStatus = "ADJUSTED";
+payload.reserveLastUpdatedDate = formattedDate;
+
+mc.setPayloadJSON(payload);
+// store updated payload for later use
+mc.setProperty("updatedPayload", payload);
+]]></script>
+
+<payloadFactory media-type="json">
+    <format>
+            {
+            "$set": $1
+            }
+        </format>
+    <args>
+        <arg evaluator="json" expression="json-eval($)"/>
+        </args>
+    </payloadFactory>
+<property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;claimId&quot;:&quot;', $ctx:claimId, '&quot;}')"/>
+<property name="mongoUpdate" expression="json-eval($)"/>
+<mongodb.updateOne configKey="MongoDB-Connection-reserve-management">
+    <collection>ClaimReserves</collection>
+    <query>{$ctx:mongoQuery}</query>
+    <update>{$ctx:mongoUpdate}</update>
+    <upsert>false</upsert>
+    <responseVariable>mongodb_updateOne_1</responseVariable>
+    <overwriteBody>true</overwriteBody>
+    </mongodb.updateOne>
+<filter source="json-eval($.modifiedCount)" regex="^(?!0$).*">
+        <then>
+<script language="js"><![CDATA[
+var payload = mc.getProperty("updatedPayload") || {};
+
+// build response safely
+var response = {
+    claimId: mc.getProperty("claimId") || null,
+    adjustmentType: payload.adjustmentType ?? null,
+    currentReserveAmount: payload.currentReserveAmount ?? null,
+    adjustedAmount: payload.adjustmentAmount ?? null,
+    reserveStatus: payload.reserveStatus ?? null,
+    reserveLastUpdatedDate: payload.reserveLastUpdatedDate ?? null,
+    message: "Reserve updated successfully"
+};
+
+mc.setPayloadJSON(response);
+]]></script>
+        </then>
+        <else>
+        <propertyGroup description="error details">
+            <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+            <property value="Update failed" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="Failed to update Reserve!!!" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+        <call-template description="Error Log" target="Common-Log-Template-V1">
+            <with-param name="service" value="reserve-management-sapi"/>
+            <with-param name="sequence" value="reserve-management-sapi-updateReserve-sequence"/>
+            <with-param name="level" value="INFO"/>
+            <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+            <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="reserve-management-sapi-fault-sequence" />
+        </else>
+    </filter>
+<property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+	<call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="reserve-management-sapi"/>
+        <with-param name="sequence" value="reserve-management-sapi-updateReserve-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="END reserve-management-sapi-updateReserve-sequence"/>
+        <with-param name="status" value="Ended"/>
+    </call-template>
+</sequence>

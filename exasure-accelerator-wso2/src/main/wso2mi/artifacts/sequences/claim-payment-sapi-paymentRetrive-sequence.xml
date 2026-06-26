@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-sapi-paymentRetrive-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+   <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="paymentId" expression="get-property('uri.var.paymentId')" scope="default"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-sapi-paymentRetrive-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started claim-payment-sapi-paymentRetrive-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+	<!-- Auth header -->
+    <header name="Authorization" scope="transport" value="Bearer sk_test_51SdNv2Qsuyht91JMrQw97hGiY8ZGLbcdm0vdxQyd75JIqv0KX8n6I6oh9iec8Wu5VOO9OD6610K4ulsGAL6fwYSC00tKjpLaSa"/>
+	<propertyGroup description="inputProperties">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" expression="concat('/v1/payouts/', $ctx:paymentId)"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="stripe-api-restEndpoint"/>
+    </call>
+    <propertyGroup>
+        <property name="messageType" value="application/json" scope="axis2"/>
+        <property name="ContentType" value="application/json" scope="axis2"/>
+        <property name="HTTP_SC" value="200" scope="axis2"/>
+    </propertyGroup>
+	<filter source="get-property('axis2','HTTP_SC')" regex="^(200|201)$">
+        <then>
+<payloadFactory media-type="json">
+    <format>
+        {
+          "transactionDetails": {
+            "amount": $1,
+            "currency": "$2",
+            "method": "$3",
+            "payoutDestinationId": "$4",
+            "dateTime": "$5",
+            "status": "$6"
+          }
+        }
+    </format>
+    <args>
+        <arg evaluator="json" expression="$.amount"/>
+        <arg evaluator="json" expression="$.currency"/>
+        <arg evaluator="json" expression="$.method"/>
+        <arg evaluator="json" expression="$.destination"/>
+        <arg evaluator="xml" expression="get-property('SYSTEM_DATE', 'dd-MM-yyyy HH:mm:ss')"/>
+        <arg evaluator="json" expression="$.status"/>
+    </args>
+</payloadFactory>
+        </then>
+        <else>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg expression="get-property('axis2','HTTP_SC')"/>
+                    <arg expression="get-property('ERROR_MESSAGE')"/>
+                    <arg expression="get-property('uuid')"/>
+                    <arg expression="fn:current-dateTime()"/>
+                </args>
+            </payloadFactory>
+        </else>
+</filter><property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-sapi-paymentRetrive-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="END claim-payment-sapi-paymentRetrive-sequence"/>
+        <with-param name="status" value="Ended"/>
+    </call-template>
+</sequence>

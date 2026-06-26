@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="receivables-sapi-createReceivables-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+   <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="receivables-sapi"/>
+        <with-param name="sequence" value="receivables-sapi-createReceivables-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started receivables-sapi-createReceivables-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+<script language="js"><![CDATA[
+var payload = mc.getPayloadJSON();
+
+// Generate timestamp
+var sdf = new java.text.SimpleDateFormat("yyyyMMddHHSSS");
+var ts = sdf.format(new java.util.Date());
+
+// Create values
+var receivableId = "REC-" + ts;
+var status = "OPEN";
+
+// Set into payload
+payload.receivableIdentifier = receivableId;
+payload.receivableStatusCode = status;
+
+// Store as properties 
+mc.setProperty("receivableIdentifier", receivableId);
+mc.setProperty("receivableStatusCode", status);
+
+mc.setPayloadJSON(payload);
+]]></script>
+    <property name="InsertQuery" expression="json-eval($)" scope="default"/>
+    <mongodb.insertOne configKey="MongoDB-Connection-receivables">
+        <collection>receivables</collection>
+        <document>{$ctx:InsertQuery}</document>
+        <responseVariable>mongodb_insertOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+    <property name="insertedCount" expression="json-eval($.insertedCount)" scope="default"/>
+    <filter xpath="$ctx:insertedCount = 1">
+        <then>
+<payloadFactory media-type="json">
+    <format>
+        {
+          "receivableIdentifier": "$1",
+          "receivableStatusCode": "$2",
+          "createdDateTime": "$3",
+          "message": "Receivable record created Successfully"
+        }
+    </format>
+    <args>
+        <arg evaluator="xml" expression="get-property('receivableIdentifier')"/>
+        <arg evaluator="xml" expression="get-property('receivableStatusCode')"/>
+        <arg evaluator="xml" expression="get-property('SYSTEM_DATE', 'yyyy-MM-dd')"/>
+    </args>
+</payloadFactory>
+        </then>
+        <else>
+        <propertyGroup description="error details">
+            <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+            <property value="Insert failed" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="Data insert failed" name="ERROR_DETAIL" scope="default" type="STRING"/>
+        </propertyGroup>
+        <call-template description="Error Log" target="Common-Log-Template-V1">
+            <with-param name="service" value="receivables-sapi"/>
+            <with-param name="sequence" value="receivables-sapi-createReceivables-sequence"/>
+            <with-param name="level" value="INFO"/>
+            <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+            <with-param name="status" value="ERROR"/>
+        </call-template>
+        <sequence key="receivables-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="receivables-sapi"/>
+        <with-param name="sequence" value="receivables-sapi-createReceivables-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="END receivables-sapi-createReceivables-sequence"/>
+        <with-param name="status" value="Ended"/>
+    </call-template>
+</sequence>

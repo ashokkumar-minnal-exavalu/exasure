@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/quote-sapi/api" name="quote-sapi" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/quote/{quoteId}">
+        <inSequence>
+            <sequence key="quote-sapi-get-quote-by-quoteId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" description="quote-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/quote/{quoteId}/accept">
+        <inSequence>
+            <sequence key="quote-sapi-patch-acceptQuote-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" description="quote-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/quote/{quoteId}/discard">
+        <inSequence>
+            <sequence key="quote-sapi-patch-discardQuote-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" description="quote-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/quote">
+        <inSequence>
+            <sequence key="quote-sapi-create-quote-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/quote/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="quote-sapi-get-quote-by-policyHolderId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/quote/{quoteId}/coverages">
+        <inSequence>
+            <sequence key="quote-sapi-create-coverage-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/quote/{quoteId}/coverages">
+        <inSequence>
+            <sequence key="quote-sapi-get-coverage-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/quote/{quoteId}">
+        <inSequence>
+            <sequence key="quote-sapi-update-quote-sequence"/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/products/{productId}/coverages">
+        <inSequence>
+            <sequence key="quote-sapi-get-allCoverages-By-ProductCode-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+</api>

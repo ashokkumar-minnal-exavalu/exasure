@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="reserve-management-sapi-createReserve-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+   <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')"/>
+        <property name="requestPayload" expression="json-eval($)"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="reserve-management-sapi"/>
+        <with-param name="sequence" value="reserve-management-sapi-createReserve-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started reserve-management-sapi-createReserve-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <script language="js"><![CDATA[
+var payload = mc.getPayloadJSON();
+
+// Generate timestamp: yyyyMMddHHSSS
+var now = new Date();
+
+function pad(n) {
+    return n < 10 ? "0" + n : n;
+}
+
+var ts = now.getFullYear().toString() +
+    pad(now.getMonth() + 1) +
+    pad(now.getDate()) +
+    pad(now.getHours()) +
+    pad(now.getMinutes()) +
+    pad(now.getSeconds()) +
+    now.getMilliseconds();
+
+// Format date yyyy-MM-dd
+var reserveCreatedDate = now.getFullYear() + "-" +
+    pad(now.getMonth() + 1) + "-" +
+    pad(now.getDate());
+
+// Get claimId from property
+var claimId = mc.getProperty("claimId");
+
+// Merge 
+var result = {
+    claimId: claimId,
+    reserveId: "RSV-" + ts,
+    reserveStatus: "ACTIVE",
+    reserveCreatedDate: reserveCreatedDate
+};
+
+// Merge existing payload into result
+for (var key in payload) {
+    result[key] = payload[key];
+}
+
+// Set final payload
+mc.setPayloadJSON(result);
+]]></script>
+    <property name="mongoInsert" expression="json-eval($)" scope="default"/>
+<log category="INFO" level="custom"  description="mongoInsertPayload">
+    <property name="mongoInsertPayload*************"  expression="json-eval($)"   />
+</log>
+    <mongodb.insertOne configKey="MongoDB-Connection-reserve-management">
+    <collection>ClaimReserves</collection>
+    <document>{$ctx:mongoInsert}</document>
+    <responseVariable>mongodb_insertOne_1</responseVariable>
+    <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+<property name="insertedCount" expression="json-eval($.insertedCount)" scope="default"/>
+<filter xpath="$ctx:insertedCount = 1">
+    <then>
+<property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;claimId&quot;:&quot;', $ctx:claimId, '&quot;}')"/>
+    <mongodb.find configKey="MongoDB-Connection-reserve-management">
+        <collection>ClaimReserves</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+            </mongodb.find>
+<log category="INFO" level="custom"  description="MongoResponse">
+    <property name="MongoFindResponse"  expression="json-eval($)"   />
+</log>
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+    <then>
+<property name="firstItem" expression="json-eval($.data[0])"/>
+<payloadFactory description="ResponsePayload" media-type="json" template-type="Default">
+    
+    <format>
+                            {
+                            "reserveId": "$1",
+                            "claimId": "$2",
+                            "reserveType": "$3",
+                            "reserveCategory": "$4",
+                            "reserveAmount": {
+                            "amount": "$5",
+                            "currency": "$6"
+                            },
+                            "reserveStatus": "$7",
+                            "reserveCreatedDate": "$8",
+                            "message": "Reserve created successfully"
+                            }
+                        </format>
+    <args>
+        <arg   expression="json-eval($ctx:firstItem.reserveId)" evaluator="json"   />
+        <arg   expression="json-eval($ctx:firstItem.claimId)" evaluator="json"   />
+        <arg   expression="json-eval($ctx:firstItem.reserveType)" evaluator="json"   />
+        <arg   expression="json-eval($ctx:firstItem.reserveCategory)" evaluator="json"   />
+        <arg   expression="json-eval($ctx:firstItem.reserveAmount.amount)" evaluator="json"   />
+        <arg   expression="json-eval($ctx:firstItem.reserveAmount.currency)" evaluator="json"   />
+        <arg   expression="json-eval($ctx:firstItem.reserveStatus)" evaluator="json"   />
+        <arg   expression="json-eval($ctx:firstItem.reserveCreatedDate)" evaluator="json"   />
+    </args>
+</payloadFactory>
+    <log category="INFO" level="custom"  description="ResponsePayload">
+    <property name="ResponsePayload*************"  expression="json-eval($)"   />
+</log>
+                </then>
+        <else>
+            <propertyGroup description="error details">
+                        <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                        <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                        <property value="No reserves found for the given claimId" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                    </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                        <with-param name="service" value="reserve-management-sapi"/>
+                        <with-param name="sequence" value="reserve-management-sapi-createReserve-sequence"/>
+                        <with-param name="level" value="INFO"/>
+                        <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                        <with-param name="status" value="ERROR"/>
+                    </call-template>
+                    <sequence key="reserve-management-sapi-fault-sequence"/>
+                </else>
+            </filter>
+        </then>
+    <else>
+            <propertyGroup description="error details">
+                <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Insert failed" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="Data insert failed" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="reserve-management-sapi"/>
+                <with-param name="sequence" value="reserve-management-sapi-createReserve-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="reserve-management-sapi-fault-sequence"/>
+        </else>
+    </filter>
+	<property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+	<call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="reserve-management-sapi"/>
+        <with-param name="sequence" value="reserve-management-sapi-createReserve-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="END reserve-management-sapi-createReserve-sequence"/>
+        <with-param name="status" value="Ended"/>
+    </call-template>
+</sequence>

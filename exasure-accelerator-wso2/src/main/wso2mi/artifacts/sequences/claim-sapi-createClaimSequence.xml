@@ -1,0 +1,79 @@
+<sequence name="claim-sapi-createClaimSequence" xmlns="http://ws.apache.org/ns/synapse">
+	<!-- ================= STORE REQUEST JSON ================= -->
+	<call-template target="Common-Log-Template-V1" description="start-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="createClaimSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Initiating createClaimSequence"/>
+		<with-param name="status" value="START"/>
+	</call-template>
+	<enrich>
+		<source type="body"/>
+		<target type="property" property="REQ_JSON"/>
+	</enrich>
+	<script language="js"><![CDATA[
+        var payload = mc.getPayloadJSON();
+        var claimData;
+
+        if (payload && payload.claimRequest) {
+            claimData = payload.claimRequest;
+        } else {
+            claimData = payload;
+            payload = { claimRequest: claimData };
+        }
+
+        // Generate claimId and system fields
+        claimData.claimId = claimData.claimId || ("CLM-" + new Date().getTime());
+        claimData.claimStatusCode = claimData.claimStatusCode || "APPLIED";
+
+        // Update payload
+        mc.setPayloadJSON(payload);
+		// In JS
+mc.setProperty("CLAIM_ID", claimData.claimId, "default");
+    ]]></script>
+	<mongodb.insertOne configKey="wso2DB">
+		<collection>Claims</collection>
+		<document>{json-eval($)}</document>
+		<responseVariable>dbResult</responseVariable>
+		<overwriteBody>true</overwriteBody>
+	</mongodb.insertOne>
+	<property name="ContentType" scope="transport" value="application/json"/>
+	<property name="INSERTED_COUNT" expression="json-eval($.insertedCount)" scope="default"/>
+	<filter xpath="$ctx:INSERTED_COUNT = '1'">
+		<then>
+			<payloadFactory media-type="json">
+				<format>
+					{
+					"isSuccessfull": true,
+					"claimId": "$1",
+					"message": "Claim registered successfully"
+					}
+				</format>
+				<args>
+					<arg evaluator="default" expression="get-property('CLAIM_ID')"/>
+				</args>
+			</payloadFactory>
+			<property name="HTTP_SC" value="201" scope="axis2"/>
+		</then>
+		<else>
+			<payloadFactory media-type="json">
+				<format>
+					{
+					"isSuccessfull": false,
+					"message": "Claim registration failed"
+					}
+				</format>
+				<args/>
+			</payloadFactory>
+			<property name="HTTP_SC" value="500" scope="axis2"/>
+		</else>
+	</filter>
+	<call-template target="Common-Log-Template-V1" description="end-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="createClaimSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Ending createClaimSequence"/>
+		<with-param name="status" value="END"/>
+	</call-template>
+	<respond/>
+</sequence>

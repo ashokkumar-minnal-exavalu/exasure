@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-create-loss-inspection-report-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup>
+        <property name="inputData" expression="json-eval($)" scope="default"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')"/>
+    </propertyGroup>
+    <scatter-gather parallel-execution="true" target="Body" result-content-type="JSON">
+        <aggregation expression="${payload}"/>
+        <sequence>
+            <propertyGroup>
+                <property name="ContentType" value="application/x-www-form-urlencoded" scope="axis2"/>
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/claim/', $ctx:claimId, '/assign')"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="claim-assignment-sapi-restEndpoint"/>
+            </call>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message></message>
+                <property name="LOG-AssignResponse" expression="json-eval($)"/>
+            </log>
+            <filter source="$axis2:HTTP_SC" regex="200">
+                <then>
+                    <payloadFactory media-type="json">
+                        <format>{"assignmentResponse": $1}</format>
+                        <args>
+                            <arg evaluator="json" expression="$"/>
+                        </args>
+                    </payloadFactory>
+                </then>
+                <else>
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                            "errorCode": "$1",
+                            "errorMessage": "$2",
+                            "errorDetails": "$3",
+                            "transactionId": "$4",
+                            "timeStamp": "$5"
+                            }
+                        </format>
+                        <args>
+                            <arg evaluator="json" expression="$.errorCode"/>
+                            <arg evaluator="json" expression="$.errorMessage"/>
+                            <arg evaluator="json" expression="$.errorDetails"/>
+                            <arg evaluator="json" expression="$.transactionId"/>
+                            <arg evaluator="json" expression="$.timeStamp"/>
+                        </args>
+                    </payloadFactory>
+                    <property name="HTTP_SC" scope="axis2" value="404"/>
+                    <respond/>
+                </else>
+            </filter>
+        </sequence>
+        <sequence>
+            <propertyGroup>
+                <property name="ContentType" value="application/x-www-form-urlencoded" scope="axis2"/>
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/claim/', $ctx:claimId, '/loss-items')"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="claim-assessment-sapi-restEndpoint"/>
+            </call>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message></message>
+                <property name="LOG-AssessmentResponse" expression="json-eval($)"/>
+            </log>
+            <filter source="$axis2:HTTP_SC" regex="200">
+                <then>
+                    <payloadFactory media-type="json">
+                        <format>{"lossitemsResponse": $1}</format>
+                        <args>
+                            <arg evaluator="json" expression="$.data"/>
+                        </args>
+                    </payloadFactory>
+                </then>
+                <else>
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                            "errorCode": "$1",
+                            "errorMessage": "$2",
+                            "errorDetails": "$3",
+                            "transactionId": "$4",
+                            "timeStamp": "$5"
+                            }
+                        </format>
+                        <args>
+                            <arg evaluator="json" expression="$.errorCode"/>
+                            <arg evaluator="json" expression="$.errorMessage"/>
+                            <arg evaluator="json" expression="$.errorDetails"/>
+                            <arg evaluator="json" expression="$.transactionId"/>
+                            <arg evaluator="json" expression="$.timeStamp"/>
+                        </args>
+                    </payloadFactory>
+                    <property name="HTTP_SC" scope="axis2" value="404"/>
+                    <respond/>
+                </else>
+            </filter>
+        </sequence>
+    </scatter-gather>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>LOG-AFterScatterGather</message>
+        <property name="SCResponse" expression="json-eval($)"/>
+    </log>
+    <script language="js"><![CDATA[// -----------------------------
+// Get initial payload
+// -----------------------------
+var initPayload = mc.getProperty("inputData");
+if (typeof initPayload === "string") {
+    initPayload = JSON.parse(initPayload);
+}
+
+var payload = mc.getPayloadJSON();
+
+// -----------------------------
+// Extract assignment & lossItem (order-independent)
+// -----------------------------
+var assignment = null;
+var lossItem = null;
+
+for (var i = 0; i < payload.length; i++) {
+    var item = payload[i];
+
+    if (item.assignmentResponse) {
+        assignment = item.assignmentResponse;
+    }
+
+    if (item.lossitemsResponse && item.lossitemsResponse.length > 0) {
+        lossItem = item.lossitemsResponse[0];
+    }
+}
+
+// -----------------------------
+// Safety checks
+// -----------------------------
+if (!assignment) {
+    throw "assignmentResponse not found in payload";
+}
+
+if (!lossItem) {
+    throw "lossitemsResponse not found in payload";
+}
+
+// -----------------------------
+// Set property
+// -----------------------------
+mc.setProperty("lossItemIdentifier", lossItem.lossItemIdentifier);
+
+// -----------------------------
+// Deep copy inputData
+// -----------------------------
+var updatedPayload = JSON.parse(JSON.stringify(initPayload));
+
+// -----------------------------
+// DW: update case .assessment
+// -----------------------------
+if (updatedPayload.assessment) {
+
+    var a = updatedPayload.assessment;
+
+    // mutate existing object (DO NOT replace)
+    updatedPayload.assessment.netPayableAmount =
+        (a.assessedLossAmount || 0)
+        - (a.depreciationAmount || 0)
+        - (a.deductibleAmount || 0);
+}
+
+// -----------------------------
+// DW: update case .inspectionOutcome
+// -----------------------------
+if (updatedPayload.inspectionOutcome) {
+
+    var io = updatedPayload.inspectionOutcome;
+
+    // mutate existing object (DO NOT replace)
+    io.recommendation =
+        io.recommendation || "PROCEED_WITH_SETTLEMENT";
+
+    io.remarks =
+        io.remarks || "Repairable damage; recommend cashless repair";
+}
+
+// -----------------------------
+// Date calculation (now + 1 day)
+// -----------------------------
+var now = new Date();
+now.setDate(now.getDate() + 1);
+
+var inspectionDate = new Date(now.getTime()).toISOString();
+
+// -----------------------------
+// Construct final response
+// -----------------------------
+var result = {
+
+    inspectionType: "FIELD_SURVEY",
+    inspectionStatus: "APPROVED",
+
+    adjusterDetails: {
+        adjusterId: assignment.adjusterId,
+        adjusterType: "FIELD_SURVEYOR",
+        assignedDate: assignment.assignedDate,
+        inspectionDate: inspectionDate
+    },
+
+    lossItemReference: {
+        lossItemIdentifier: lossItem.lossItemIdentifier,
+        insurableObjectIdentifier: lossItem.insurableObjectIdentifier,
+        coverageIdentifier: lossItem.coverageIdentifier,
+        lossTypeCode: lossItem.lossTypeCode,
+        damageCategory: lossItem.damageCategory
+    },
+
+    // Directly reuse updated payload sections (DW behavior)
+    inspectionFindings: updatedPayload.inspectionFindings,
+    assessment: updatedPayload.assessment,
+
+    inspectionOutcome: updatedPayload.inspectionOutcome || {
+        recommendation: "PROCEED_WITH_SETTLEMENT",
+        remarks: "Repairable damage; recommend cashless repair"
+    }
+};
+
+// -----------------------------
+// Set final payload
+// -----------------------------
+mc.setPayloadJSON(result);]]></script>
+    <propertyGroup>
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/claim/', $ctx:claimId, '/inspection-reports')"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="claim-assessment-sapi-restEndpoint"/>
+    </call>
+    <property name="postAssessResponse" scope="default" expression="json-eval($)"/>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message></message>
+        <property name="LOG-assessResponse" expression="json-eval($)"/>
+    </log>
+    <filter source="$axis2:HTTP_SC" regex="201">
+        <then>
+            <filter source="json-eval($.inspectionStatus)" regex="COMPLETED">
+                <then>
+                    <propertyGroup>
+                        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+                        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/claim/', $ctx:claimId, '/loss-items')"/>
+                    </propertyGroup>
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                            "lossStatus": "APPROVED",
+                            "lossItemIdentifier": "$1"
+                            }
+                        </format>
+                        <args>
+                            <arg expression="$ctx:lossItemIdentifier"/>
+                        </args>
+                    </payloadFactory>
+                    <call>
+                        <endpoint key="claim-assessment-sapi-restEndpoint"/>
+                    </call>
+                </then>
+                <else>
+                </else>
+            </filter>
+            <sequence key="claim-papi-postReserve-sequence"/>
+            <clone continueParent="true" id="async" sequential="true">
+                <target>
+                    <sequence>
+                        <sequence key="claim-papi-create-payable-sequence"/>
+                        <sequence key="claim-papi-audit-sequence"/>
+                        <sequence key="claim-papi-create-general-ledger-sequence"/>
+                    </sequence>
+                </target>
+            </clone>
+            <payloadFactory media-type="json">
+                <format>
+                    $1
+                </format>
+                <args>
+                    <!-- approvedAmount -->
+                    <arg expression="$ctx:postAssessResponse"/>
+                </args>
+            </payloadFactory>
+                      <property name="HTTP_SC" value="201" scope="axis2"/>
+        </then>
+        <else>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "400",
+                    "errorMessage": "Duplicate inspection submission.",
+                    "errorDetails": "An inspection report for claim $1 already exists. Please verify before submitting again.",
+                    "transactionId": "$2",
+                    "timeStamp": "$3"
+                    }
+                </format>
+                <args>
+                    <arg expression="get-property('claimId')"/>
+                    <arg expression="get-property('correlationId')"/>
+                    <arg expression="get-property('SYSTEM_DATE')"/>
+                </args>
+            </payloadFactory>
+            <property name="HTTP_SC" scope="axis2" value="404"/>
+            <respond/>
+        </else>
+    </filter>
+</sequence>

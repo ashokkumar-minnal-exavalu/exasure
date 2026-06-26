@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<localEntry key="sendEmail-claim-payment-papi" xmlns="http://ws.apache.org/ns/synapse">
+  <email.init>
+    <connectionType>SMTPS</connectionType>
+    <host>smtp.gmail.com</host>
+    <port>587</port>
+    <username>exavaluinsuranceaccelarator@gmail.com</username>
+    <password>cxwh hqfz xftu bdyg</password>
+    <enableOAuth2>false</enableOAuth2>
+    <requireTLS>true</requireTLS>
+    <name>sendEmail-claim-payment-papi</name>
+  </email.init>
+</localEntry>

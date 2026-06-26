@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-audit-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    <property name="LatencyMs" value="0"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-audit-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Initiating claim-payment-papi-audit-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <payloadFactory media-type="json">
+      <format>{ "eventTypeCode": "NEW_CLAIM" }</format>
+      <args/>
+    </payloadFactory>
+
+    <property name="HTTP_METHOD" value="PATCH" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" expression="fn:concat('/update/audit-trail/claim/',get-property('claimId'))" scope="axis2"/>
+
+    <call>
+      <endpoint key="audit-trail-sapi-restEndpoint"/>
+    </call>
+
+    <property name="auditResponse" expression="json-eval($)" scope="default"/>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-audit-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Completed claim-payment-papi-audit-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

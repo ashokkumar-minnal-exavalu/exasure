@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-document-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="documentId" expression="get-property('uri.var.documentId')"/>
+        <property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;documentId&quot;:&quot;', $ctx:documentId, '&quot;}')"/>
+    </propertyGroup>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="document-sapi"/>
+        <with-param name="sequence" value="get-document-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started get-document-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <mongodb.findOne configKey="WSO2-Accelerator-DB">
+        <collection>Documents</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>mongodb_findOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Mongo Find Response++++++++++++++</message>
+    </log>
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <script language="js"><![CDATA[
+                var payload = mc.getPayloadJSON();
+
+                if (payload && payload.found && payload.data) {
+
+                    var data = payload.data;
+                    var clean;
+
+                    //  Handle ARRAY
+                    if (Array.isArray(data)) {
+                        clean = JSON.parse(JSON.stringify(data));
+
+                        for (var i = 0; i < clean.length; i++) {
+                            delete clean[i]._id;
+                        }
+
+                    } 
+                    //  Handle OBJECT (your case)
+                    else {
+                        clean = JSON.parse(JSON.stringify(data));
+                        delete clean._id;
+                    }
+
+                    mc.setPayloadJSON(clean);
+
+                } else {
+                    mc.setPayloadJSON([]);
+                }
+            ]]></script>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property name="ERROR_CODE" scope="default" type="STRING" value="404"/>
+                <property name="ERROR_MESSAGE" scope="default" type="STRING" value="Not_Found"/>
+                <property name="ERROR_DETAIL" scope="default" type="STRING" value="Document details not found in the system"/>
+                <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="404"/>
+            </propertyGroup>
+        <call-template description="Error Log" target="Common-Log-Template-V1">
+            <with-param name="service" value="document-sapi"/>
+            <with-param name="sequence" value="get-document-sapi-sequence"/>
+            <with-param name="level" value="INFO"/>
+            <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/> 
+            <with-param name="status" value="ERROR"/>
+            </call-template>        
+            <sequence key="document-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="document-sapi"/>
+        <with-param name="sequence" value="get-document-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended get-document-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

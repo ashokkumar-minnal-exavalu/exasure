@@ -1,0 +1,10 @@
+---
+key: "poilcy-admin-api-1.0.0"
+name : "poilcy-admin-api"
+displayName : "poilcy-admin-api"
+description: "poilcy-admin-api"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/poilcy-admin-papi"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

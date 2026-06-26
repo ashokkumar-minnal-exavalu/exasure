@@ -1,0 +1,10 @@
+---
+key: "user-sapi-api-1.0.0"
+name : "user-sapi-api"
+displayName : "user-sapi-api"
+description: "user-sapi-api"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/user-sapi"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

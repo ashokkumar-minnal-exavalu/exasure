@@ -1,0 +1,37 @@
+openapi: 3.0.1
+info:
+  title: fraud-evaluation-sapi
+  description: API Definition of fraud-evaluation-sapi
+  version: 1.0.0
+servers:
+- url: http://localhost:8290/fraud-evaluation-sapi/api
+- url: https://localhost:8253/fraud-evaluation-sapi/api
+paths:
+  /claim/{claimId}/fraud-check:
+    post:
+      parameters:
+      - name: claimId
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response

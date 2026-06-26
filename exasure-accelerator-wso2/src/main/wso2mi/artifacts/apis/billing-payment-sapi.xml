@@ -1,0 +1,74 @@
+<api name="billing-payment-sapi" context="/billing-payment-sapi/api/billing-payment" xmlns="http://ws.apache.org/ns/synapse">
+    <!-- POST /payment-intent -->
+    <resource methods="POST" uri-template="/store-payout">
+        <inSequence>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>${payload}</message>
+            </log>
+            <sequence key="billing-payment-sapi-store-payout-sequence"/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/retrive-payout/{payoutId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-retrive-payout-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/payout">
+        <inSequence>
+            <sequence key="billing-payment-sapi-create-payout-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/payment-intent">
+        <inSequence>
+            <sequence key="billing-payment-sapi-create-payment-intent-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/store-payment">
+        <inSequence>
+            <sequence key="billing-payment-sapi-create-store-payment-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/retrive-payment/{quoteId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-retrive-payment-based-on-quoteId-sequence"/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/fetch-payout/{quoteId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-fetch-payout-based-on-quoteId-sequence"/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/payment_intents/{payment-intentId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-retrive-payment-intent-by-paymentIntentId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/payment/{paymentIntentId}/confirm">
+        <inSequence>
+            <sequence key="billing-payment-sapi-confirm-payment-sequence"/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

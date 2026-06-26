@@ -1,0 +1,10 @@
+---
+key: "claim-assessment-sapi-1.0.0"
+name : "claim-assessment-sapi"
+displayName : "claim-assessment-sapi"
+description: "claim-assessment-sapi"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/claim-assessment-sapi"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

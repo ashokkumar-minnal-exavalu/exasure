@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-acceptClaimByClaimIdSequence" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="claim-papi-acceptClaimByClaimIdSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Initiating claim-papi-acceptClaimByClaimIdSequence"/>
+		<with-param name="status" value="START"/>
+	</call-template>
+	<propertyGroup>
+		<property name="inputData" expression="json-eval($)" scope="default"/>
+		<property name="approvalMessage" expression="json-eval($.approvalMessage)" scope="default" type="STRING">
+		</property>
+		<property name="claimId" expression="get-property('uri.var.claimId')"/>
+		<property name="ContentType" value="application/x-www-form-urlencoded" scope="axis2"/>
+		<property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+		<property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/claim/', $ctx:claimId, '/inspection-reports')"/>
+	</propertyGroup>
+	<call>
+		<endpoint key="claim-assessment-sapi-restEndpoint"/>
+	</call>
+	<log category="INFO" logMessageID="false" logFullPayload="false">
+		<message></message>
+		<property name="LOG-assessResponse" expression="json-eval($)"/>
+	</log>
+	<filter source="$axis2:HTTP_SC" regex="200">
+		<then>
+			<property name="approvedAmount" expression="json-eval($.assessment.netPayableAmount)" scope="default" type="STRING"/>
+			<log category="INFO" logMessageID="false" logFullPayload="false">
+				<message></message>
+				<property name="LOG-afterFirstScript" expression="json-eval($)"/>
+			</log>
+		</then>
+		<else>
+			<payloadFactory media-type="json">
+				<format>
+					{
+					"errorCode": "$1",
+					"errorMessage": "$2",
+					"errorDetails": "$3",
+					"transactionId": "$4",
+					"timeStamp": "$5"
+					}
+				</format>
+				<args>
+					<arg evaluator="json" expression="$.errorCode"/>
+					<arg evaluator="json" expression="$.errorMessage"/>
+					<arg evaluator="json" expression="$.errorDetails"/>
+					<arg evaluator="json" expression="$.transactionId"/>
+					<arg evaluator="json" expression="$.timeStamp"/>
+				</args>
+			</payloadFactory>
+			<property name="HTTP_SC" scope="axis2" value="404"/>
+			<respond/>
+		</else>
+	</filter>
+	<propertyGroup description="inputProperties">
+		<property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+		<property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/claim/',  $ctx:claimId)"/>
+	</propertyGroup>
+	<call>
+		<endpoint key="claim-sapi-restEndpoint"/>
+	</call>
+	<log category="INFO" logMessageID="false" logFullPayload="false">
+		<message></message>
+		<property name="LOG-getClaimResponse" expression="json-eval($)"/>
+	</log>
+	<filter source="get-property('axis2','HTTP_SC')" regex="2\d{2}">
+		<then>
+			<propertyGroup>
+				<property name="claimStatusCode" expression="json-eval($.data[0].claimRequest.claimStatusCode)" scope="default" type="STRING"/>
+				<property name="claimId" expression="json-eval($.data[0].claimRequest.claimId)" scope="default" type="STRING"/>
+				<property name="policyId" expression="json-eval($.data[0].claimRequest.policyId)" scope="default" type="STRING"/>
+				<property name="claimIntimationDate" expression="json-eval($.data[0].claimRequest.claimIntimationDate)" scope="default"/>
+			</propertyGroup>
+			<filter source="$ctx:claimStatusCode" regex="APPLIED">
+				<!-- ✅ Success route -->
+				<then>
+					<script language="js"><![CDATA[
+
+// Get main payload
+var payload = mc.getPayloadJSON();
+
+// Correct extraction
+var claimRequest = {};
+
+if (
+    payload &&
+    payload.data &&
+    payload.data.length > 0 &&
+    payload.data[0].claimRequest
+) {
+    claimRequest = payload.data[0].claimRequest;
+}
+
+// Safe inputData parsing
+var inputDataRaw = mc.getProperty("inputData");
+var inputData = {};
+
+if (inputDataRaw) {
+    try {
+        inputData = (typeof inputDataRaw === 'string')
+            ? JSON.parse(inputDataRaw)
+            : inputDataRaw;
+    } catch (e) {
+        inputData = {};
+    }
+}
+
+// Generate claimSettlementId
+var claimSettlementId = "CLMPAY-" + (claimRequest.claimId || "");
+
+// Store property
+mc.setProperty("claimSettlementId", claimSettlementId);
+
+// Helper: yyyy-MM-dd
+function formatDate(date) {
+    var yyyy = date.getFullYear();
+    var mm = ('0' + (date.getMonth() + 1)).slice(-2);
+    var dd = ('0' + date.getDate()).slice(-2);
+    return yyyy + "-" + mm + "-" + dd;
+}
+
+var now = new Date();
+
+// Safe defaults
+var policy = claimRequest.policy || {};
+var insuredDetails = claimRequest.insuredDetails || {};
+var insuredContact = insuredDetails.contactDetails || {};
+var bankDetails = claimRequest.bankDetails || {};
+var contactDetails = claimRequest.contactDetails || {};
+var parties = claimRequest.parties || [];
+
+// Build response
+var response = {
+
+    claimSettlementId: claimSettlementId,
+
+    claims: {
+        policyId: policy.policyNumber || "",
+        claimId: claimRequest.claimId || "",
+        policyHolderId:
+            (parties.length > 0)
+                ? (parties[0].partyIdentifier || "")
+                : "",
+        claimsStatus: "Approved"
+    },
+
+    payment: {
+        claimAmount:
+            inputData.approvedAmount ||
+            claimRequest.approvedAmount ||
+            0,
+
+        currency: "USD",
+        country: "US",
+        paymentReasonCode: "settlement",
+        paymentType: "indemnity",
+        paymentMethod: "ACH",
+        paymentChannel: "straight_through",
+        paymentPriority: "normal",
+        paymentDateRequested: formatDate(now),
+        effectiveDate: formatDate(now)
+    },
+
+    payee: {
+        payeeId:
+            (parties.length > 0)
+                ? (parties[0].partyIdentifier || "")
+                : "",
+
+        payeeName:
+            ((insuredDetails.firstName || "") + " " +
+             (insuredDetails.lastName || "")).trim(),
+
+        payeeType: "insured",
+        payeeRole: "claimant",
+
+        contactEmail:
+            insuredContact.email ||
+            contactDetails.email ||
+            "",
+
+        contactPhone:
+            insuredContact.phone ||
+            contactDetails.phone ||
+            ""
+    },
+
+    bankDetails: {
+        accountHolderName:
+            bankDetails.accountHolderName || "",
+
+        bankName:
+            bankDetails.bankName || "",
+
+        routingNumber:
+            bankDetails.routingCode || "",
+
+        accountNumber:
+            bankDetails.accountNumber || "",
+
+        accountType:
+            bankDetails.accountType || "savings"
+    },
+
+    approval: {
+    approvedBy: "adjuster.j.smith",
+    approvalTimestamp: Math.floor(now.getTime() / 1000)
+}
+};
+
+// Set payload
+mc.setPayloadJSON(response);
+
+]]></script>
+					<propertyGroup description="inputPropertiesSettleEndpoint">
+						<property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+						<property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/claim/settlement"/>
+					</propertyGroup>
+					<log category="INFO" logMessageID="false" logFullPayload="false">
+						<message></message>
+						<property name="LOG-afterSettlemnetScript" expression="json-eval($)"/>
+					</log>
+					<call blocking="true">
+						<endpoint key="claim-sapi-restEndpoint"/>
+					</call>
+					<log category="INFO" logMessageID="false" logFullPayload="false">
+						<message></message>
+						<property name="LOG-afterSettlemetEndpoint" expression="json-eval($)"/>
+					</log>
+					<payloadFactory media-type="json">
+						<format>
+							{
+							"approvedAmount": $1,
+							"approvalMessage": "$2",
+							"claimSettlementId": "$3"
+							}
+						</format>
+						<args>
+							<!-- approvedAmount -->
+							<arg expression="$ctx:approvedAmount"/>
+							<!-- approvalMessage -->
+							<arg expression="$ctx:approvalMessage"/>
+							<!-- claimSettlementId -->
+							<arg expression="$ctx:claimSettlementId"/>
+						</args>
+					</payloadFactory>
+					<propertyGroup description="inputPatchProperties">
+						<property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+						<property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/claim/', $ctx:claimId, '/accept')"/>
+					</propertyGroup>
+					<call blocking="true">
+						<endpoint key="claim-sapi-restEndpoint"/>
+					</call>
+					<log category="INFO" logMessageID="false" logFullPayload="false">
+						<message></message>
+						<property name="LOG-afterAcceptEndpoint" expression="json-eval($)"/>
+					</log>
+					<enrich>
+						<source type="body"/>
+						<target type="property" property="acceptResponse" scope="operation"/>
+					</enrich>
+					<propertyGroup description="emailProperties">
+						<property name="messageType" value="text/html" scope="axis2"/>
+						<property name="ContentType" value="text/html" scope="axis2"/>
+						<property name="mail.smtp.from" value="noreply@exasure.com"/>
+						<property name="mail.smtp.to" value="exavaluinsuranceaccelarator@gmail.com"/>
+						<property name="mail.smtp.subject" scope="axis2" type="STRING" expression="concat('Claim Update - ', $ctx:claimId)"/>
+					</propertyGroup>
+					<script language="js"><![CDATA[
+
+    // -------------------------------
+// Read context properties
+// -------------------------------
+var claimId = mc.getProperty("claimId");
+var policyId = mc.getProperty("policyId");
+var claimIntimationDate = mc.getProperty("claimIntimationDate");
+var approvedAmount = mc.getProperty("inputData").approvedAmount;
+
+
+function formatDate(dateStr) {
+    var d = new Date(dateStr);
+    return d.toLocaleString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+    });
+}
+
+var nowFormatted = formatDate(new Date().toISOString());
+var formattedIntimationDate = formatDate(claimIntimationDate);
+
+// -------------------------------
+// Email subject
+// -------------------------------
+var subject = "Claim Approved For Claim " + claimId;
+mc.setProperty("mail.smtp.subject", subject);
+mc.setProperty("Email_Subject", subject);
+
+// -------------------------------
+// Build HTML email body (Mule DWL equivalent)
+// -------------------------------
+var emailBody =
+'<!doctype html>' +
+'<html lang="en">' +
+'<head>' +
+'  <meta charset="utf-8">' +
+'  <meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+'  <style>' +
+'    body { margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; background:#f4f6f8; color:#333; }' +
+'    .container { max-width:700px; margin:20px auto; background:#fff; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15); }' +
+'    .header { background:#2b9348; padding:24px; text-align:center; color:#fff; font-size:26px; font-weight:bold; }' +
+'    .body { padding:30px; font-size:15px; line-height:1.6; }' +
+'    .footer { padding:20px; text-align:center; font-size:12px; color:#9aa7bf; }' +
+'  </style>' +
+'</head>' +
+'<body>' +
+'  <div class="container">' +
+'    <div class="header">Claim Approved For Claim ' + claimId + '</div>' +
+'    <div class="body">' +
+'      <p>' + nowFormatted + '</p>' +
+'      <p>Dear User,</p>' +
+'      <p>We are pleased to inform you that your claim submitted on ' +
+          formattedIntimationDate +
+'      regarding your Personal Auto Insurance policy has been <strong>reviewed and approved</strong> by <strong>Exasure Insurance Integration Cloud</strong>.</p>' +
+'      <p>The approved claim amount is: <strong>' + approvedAmount + ' USD</strong>.</p>' +
+'      <p>Our finance team will begin processing the payment shortly.</p>' +
+'      <div style="margin:25px 0; text-align:center;">' +
+'        <a href="http://localhost:5173/home" style="background:#2b9348; color:#ffffff; padding:12px 22px; text-decoration:none; font-size:15px; font-weight:bold; border-radius:6px;">View Claim Status</a>' +
+'      </div>' +
+'      <p>Sincerely,<br><strong>Exasure IIC</strong><br>Claims & Customer Support</p>' +
+'    </div>' +
+'    <div class="footer">' +
+'      Exasure | http://localhost:5173/home<br>' +
+'      This is an automated message. Please do not reply.' +
+'    </div>' +
+'  </div>' +
+'</body>' +
+'</html>';
+
+
+mc.setProperty("Email_Body", emailBody);
+
+]]></script>
+					<sequence key="send-email-seq"/>
+					<sequence key="claim-papi-updateReserve-sequence"/>
+					<log category="INFO" logMessageID="false" logFullPayload="false">
+						<message></message>
+						<property name="LOG-afterUpdateSequence" expression="json-eval($)"/>
+					</log>
+					<enrich>
+						<source type="property" property="acceptResponse" scope="operation"/>
+						<target type="body"/>
+					</enrich>
+					<log category="INFO" logMessageID="false" logFullPayload="false">
+						<message></message>
+						<property name="LOG-FINAL-acceptResponse" expression="json-eval($)"/>
+					</log>
+				</then>
+				<else>
+					<payloadFactory media-type="json">
+						<format>
+							{
+							"errorCode": "400",
+							"errorMessage": "The claim with Claim ID $1 is currently in '$2' status. Only claims in 'APPLIED' status are eligible for accept.",
+							"errorDetails": "The claim with Claim ID $1 is currently in '$2' status. Only claims in 'APPLIED' status are eligible for accept.",
+							"transactionId": "$3",
+							"timeStamp": "$4"
+							}
+						</format>
+						<args>
+							<arg expression="$ctx:claimId"/>
+							<arg expression="$ctx:claimStatusCode"/>
+							<arg expression="get-property('correlationId')"/>
+							<arg expression="get-property('SYSTEM_DATE')"/>
+						</args>
+					</payloadFactory>
+					<property name="HTTP_SC" value="400" scope="axis2"/>
+				</else>
+			</filter>
+		</then>
+		<else>
+			<!-- FAILURE: return backend response AS-IS -->
+		</else>
+	</filter>
+	<property name="messageType" value="application/json" scope="axis2"/>
+	<call-template target="Common-Log-Template-V1" description="end-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="claim-papi-acceptClaimByClaimIdSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Ending claim-papi-acceptClaimByClaimIdSequence"/>
+		<with-param name="status" value="END"/>
+	</call-template>
+	<respond/>
+</sequence>

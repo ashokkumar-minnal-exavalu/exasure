@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<localEntry key="BillingPayment-Email-SMTPS-Connect" xmlns="http://ws.apache.org/ns/synapse">
+  <email.init>
+    <connectionType>SMTPS</connectionType>
+    <host>smtp.gmail.com</host>
+    <port>465</port>
+    <username>exavaluinsuranceaccelarator@gmail.com</username>
+    <password>cxwh hqfz xftu bdyg</password>
+    <enableOAuth2>false</enableOAuth2>
+    <requireTLS>false</requireTLS>
+    <name>BillingPayment-Email-SMTPS-Connect</name>
+  </email.init>
+</localEntry>

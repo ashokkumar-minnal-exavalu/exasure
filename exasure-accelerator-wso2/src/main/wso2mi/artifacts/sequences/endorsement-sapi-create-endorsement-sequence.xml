@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="endorsement-sapi-create-endorsement-sequence"
+          trace="disable"
+          xmlns="http://ws.apache.org/ns/synapse">
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="ContentType" value="application/json" scope="axis2"/>
+
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyId" expression="get-property('uri.var.policyId')" scope="default" type="STRING"/>
+    </propertyGroup>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-create-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started endorsement-sapi-create-endorsement-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="endorsementDocStr" expression="json-eval($.endorsementDoc)" scope="default" type="STRING"/>
+    <property name="policyUpdateFilterStr" expression="json-eval($.policyUpdateFilter)" scope="default" type="STRING"/>
+    <property name="policyUpdateDocStr" expression="json-eval($.policyUpdateDoc)" scope="default" type="STRING"/>
+    <property name="endorsementResponseStr" expression="json-eval($.endorsementResponse)" scope="default" type="STRING"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-create-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="DB_INSERT_START endorsement"/>
+        <with-param name="status" value="PROCESSING"/>
+    </call-template>
+    <mongodb.insertOne configKey="MongoDB-connection-endorsement">
+        <collection>endorsement</collection>
+        <document>{$ctx:endorsementDocStr}</document>
+        <responseVariable>mongoInsertResp</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.insertOne>
+
+
+    <filter xpath="string-length(normalize-space($ctx:mongoInsertResp)) > 0">
+        <then>
+            <script language="js"><![CDATA[
+                var s = mc.getProperty("mongoInsertResp");
+                var ok = true;
+                try {
+                    var o = (typeof s === "string") ? JSON.parse(s) : s;
+                    if (o && (o.acknowledged === false || o.wasAcknowledged === false)) {
+                        ok = false;
+                    }
+                } catch (e) {}
+                mc.setProperty("MONGO_INSERT_OK", ok ? "true" : "false");
+            ]]></script>
+
+            <filter xpath="$ctx:MONGO_INSERT_OK = 'false'">
+                <then>
+                    <property name="HTTP_SC" value="500" scope="axis2"/>
+                    <property name="ERROR_CODE" value="APP:MONGONOTFOUND" scope="default" type="STRING"/>
+                    <property name="ERROR_MESSAGE" value="Insert failed / Mongo not acknowledged" scope="default" type="STRING"/>
+                    <property name="ERROR_DETAIL" value="InsertOne did not return acknowledged=true" scope="default" type="STRING"/>
+
+                    <call-template target="Common-Log-Template-V1">
+                        <with-param name="service" value="endorsement-sapi"/>
+                        <with-param name="sequence" value="endorsement-sapi-create-endorsement-sequence"/>
+                        <with-param name="level" value="INFO"/>
+                        <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                        <with-param name="status" value="ERROR"/>
+                    </call-template>
+                    <sequence key="endorsement-sapi-fault-sequence"/>
+                </then>
+                <else/>
+            </filter>
+        </then>
+        <else/>
+    </filter>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-create-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="DB_UPDATE_START policies"/>
+        <with-param name="status" value="PROCESSING"/>
+    </call-template>
+    <mongodb.updateOne configKey="MongoDB-connection-endorsement">
+        <collection>policies</collection>
+        <query>{$ctx:policyUpdateFilterStr}</query>
+        <update>{$ctx:policyUpdateDocStr}</update>
+        <upsert>false</upsert>
+        <collation></collation>
+        <arrayFilters></arrayFilters>
+        <responseVariable>mongoUpdateResp</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.updateOne>
+
+
+    <script language="js"><![CDATA[
+        var s = mc.getProperty("mongoUpdateResp");
+        var matched = 1;
+        try {
+            if (s) {
+                var o = (typeof s === "string") ? JSON.parse(s) : s;
+                if (o && o.matchedCount !== undefined) {
+                    matched = Number(o.matchedCount);
+                } else if (o && o.result && o.result.n !== undefined) {
+                    matched = Number(o.result.n);
+                }
+            }
+        } catch (e) {}
+        mc.setProperty("MONGO_UPDATE_MATCHED", String(matched));
+    ]]></script>
+
+    <filter xpath="number($ctx:MONGO_UPDATE_MATCHED) = 0">
+        <then>
+            <property name="HTTP_SC" value="500" scope="axis2"/>
+            <property name="ERROR_CODE" value="APP:MONGOUPDATEFAILED" scope="default" type="STRING"/>
+            <property name="ERROR_MESSAGE" value="endorsement updatation is failed for the given policyNumber" scope="default" type="STRING"/>
+            <property name="ERROR_DETAIL" value="Mongo updateOne matchedCount=0" scope="default" type="STRING"/>
+
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="endorsement-sapi"/>
+                <with-param name="sequence" value="endorsement-sapi-create-endorsement-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+
+            <sequence key="endorsement-sapi-fault-sequence"/>
+        </then>
+        <else/>
+    </filter>
+
+    <payloadFactory media-type="json">
+        <format>{"isSuccessfull":true,"policyId":"$1","endorsementResponse":$2}</format>
+        <args>
+            <arg expression="$ctx:policyId"/>
+            <arg expression="$ctx:endorsementResponseStr"/>
+        </args>
+    </payloadFactory>
+
+    <property name="HTTP_SC" value="201" scope="axis2"/>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-create-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended endorsement-sapi-create-endorsement-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+    <respond/>
+</sequence>

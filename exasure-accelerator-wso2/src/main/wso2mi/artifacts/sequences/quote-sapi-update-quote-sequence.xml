@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="quote-sapi-update-quote-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup>
+        <property name="quoteId" expression="get-property('uri.var.quoteId')" scope="default" type="STRING"/>
+        <property name="inputData" expression="json-eval($)" scope="default"/>
+    </propertyGroup>
+    <property name="retrieveQuery" expression="fn:concat('{&quot;quote.quoteId&quot;:&quot;', $ctx:quoteId, '&quot;}')" scope="default" type="STRING"/>
+    <mongodb.findOne configKey="WSO2-MongoDB-Connection">
+        <collection>quotes</collection>
+        <query>{$ctx:retrieveQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>quoteDetailsResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+    <script language="js"><![CDATA[var log = mc.getServiceLog();
+
+log.info("===== PATCH SCRIPT STARTED =====");
+
+try {
+
+    // =====================================================
+    // 1️⃣ Load Mongo Response Payload
+    // =====================================================
+    var payload = mc.getPayloadJSON();
+    log.info("Incoming Payload: " + JSON.stringify(payload));
+
+    if (!payload) {
+        throw "Payload is null";
+    }
+
+    if (!payload.found) {
+        throw "Quote not found in database";
+    }
+
+    if (!payload.data) {
+        throw "Mongo response missing 'data' object";
+    }
+
+    var base = payload.data;
+    log.info("Base Object Before Update: " + JSON.stringify(base));
+
+    // =====================================================
+    // 2️⃣ Read PATCH Input Property
+    // =====================================================
+    var updateDataRaw = mc.getProperty("inputData");
+    log.info("Raw inputData Property: " + updateDataRaw);
+
+    if (!updateDataRaw) {
+        throw "inputData property is missing";
+    }
+
+    var updateWrapper = JSON.parse(updateDataRaw);
+
+    if (!updateWrapper.update) {
+        throw "'update' object missing in inputData";
+    }
+
+    var updateData = updateWrapper.update;
+    log.info("Parsed Update Data: " + JSON.stringify(updateData));
+
+    // =====================================================
+    // 3️⃣ DRIVER UPDATE (Match by driverIdentifier)
+    // =====================================================
+    if (updateData.driverDetails && base.driverDetails) {
+
+        updateData.driverDetails.forEach(function (updatedDriver) {
+
+            base.driverDetails.forEach(function (existingDriver) {
+
+                if (existingDriver.driverIdentifier === updatedDriver.driverIdentifier) {
+
+                    log.info("Updating Driver: " + existingDriver.driverIdentifier);
+
+                    Object.keys(updatedDriver).forEach(function (key) {
+                        existingDriver[key] = updatedDriver[key];
+                    });
+                }
+
+            });
+
+        });
+    }
+
+    // =====================================================
+    // 4️⃣ UNDERWRITING UPDATE (Single element merge)
+    // =====================================================
+    if (updateData.underWritingQuestions &&
+        base.underWritingQuestions &&
+        base.underWritingQuestions.length > 0 &&
+        updateData.underWritingQuestions.length > 0) {
+
+        var updatedUW = updateData.underWritingQuestions[0];
+        var existingUW = base.underWritingQuestions[0];
+
+        Object.keys(updatedUW).forEach(function (key) {
+            existingUW[key] = updatedUW[key];
+        });
+
+        log.info("Underwriting updated successfully");
+    }
+
+    // =====================================================
+    // 5️⃣ VEHICLE UPDATE (Match by insurableObjectIdentifier)
+    // =====================================================
+    if (updateData.insurableObjects && base.insurableObjects) {
+
+        updateData.insurableObjects.forEach(function (updatedVehicleObj) {
+
+            base.insurableObjects.forEach(function (existingVehicleObj) {
+
+                if (existingVehicleObj.insurableObjectIdentifier ===
+                    updatedVehicleObj.insurableObjectIdentifier) {
+
+                    log.info("Updating Vehicle: " +
+                        existingVehicleObj.insurableObjectIdentifier);
+
+                    if (updatedVehicleObj.vehicle && existingVehicleObj.vehicle) {
+
+                        Object.keys(updatedVehicleObj.vehicle).forEach(function (key) {
+                            existingVehicleObj.vehicle[key] =
+                                updatedVehicleObj.vehicle[key];
+                        });
+
+                    }
+                }
+
+            });
+
+        });
+    }
+
+    // =====================================================
+    // 6️⃣ DOCUMENT UPDATE (Replace if provided)
+    // =====================================================
+    if (updateData.documents && base.documents) {
+
+        log.info("Replacing documents array");
+        base.documents = updateData.documents;
+    }
+
+    // =====================================================
+    // 7️⃣ PRICING UPDATE (Shallow merge)
+    // =====================================================
+    if (updateData.pricing && base.pricing) {
+
+        Object.keys(updateData.pricing).forEach(function (key) {
+            base.pricing[key] = updateData.pricing[key];
+        });
+
+        log.info("Pricing updated");
+    }
+
+    // =====================================================
+    // 8️⃣ Final Logging & Payload Reset
+    // =====================================================
+    log.info("Base Object After Update: " + JSON.stringify(base));
+
+    payload.data = base;   // Put updated quote back into wrapper
+    mc.setPayloadJSON(payload.data);
+
+    log.info("===== PATCH SCRIPT COMPLETED SUCCESSFULLY =====");
+
+} catch (e) {
+
+    log.error("ERROR OCCURRED IN PATCH SCRIPT: " + e);
+    throw e;
+
+}
+]]></script>
+    <payloadFactory media-type="json">
+        <format>
+            {
+            "$set": $1
+            }
+        </format>
+        <args>
+            <arg evaluator="json" expression="$"/>
+        </args>
+    </payloadFactory>
+    <property name="updateQuery" expression="fn:concat('{&quot;quote.quoteId&quot;:&quot;', $ctx:quoteId, '&quot;}')"/>
+    <property name="updatePayload" expression="json-eval($)" scope="default" type="STRING"/>
+    <mongodb.updateOne configKey="WSO2-MongoDB-Connection">
+        <collection>quotes</collection>
+        <query>{$ctx:updateQuery}</query>
+        <update>{$ctx:updatePayload}</update>
+        <upsert>false</upsert>
+        <responseVariable>mongoUpdateResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.updateOne>
+    <respond/>
+</sequence>

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/claim-papi" name="claim-papi" xmlns="http://ws.apache.org/ns/synapse">
+
+    <resource methods="POST" uri-template="/claim">
+        <inSequence>
+            <sequence key="claim-papi-createClaimSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim/{claimId}">
+        <inSequence>
+            <sequence key="claim-papi-getClaimByClaimIdSequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim">
+        <inSequence>
+            <sequence key="claim-papi-getAllClaimsSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+
+    <resource methods="PATCH" uri-template="/claim/{claimId}/accept">
+        <inSequence>
+            <sequence key="claim-papi-acceptClaimByClaimIdSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+
+    <resource methods="PATCH" uri-template="/claim/{claimId}/reject">
+        <inSequence>
+            <sequence key="claim-papi-rejectClaimByClaimIdSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="claim-papi-getClaimBypolicyHolderIdSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim/{claimId}/validate">
+        <inSequence>
+            <sequence key="claim-papi-validateClaimByClaimIdSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+
+    <!-- Reserves -->
+    <resource methods="GET" uri-template="/api/claim/{claimId}/reserves">
+        <inSequence>
+            <sequence key="claim-papi-getReserve-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence/>
+    </resource>
+
+    <resource methods="PATCH" uri-template="/api/claim/{claimId}/reserves">
+        <inSequence>
+            <sequence key="claim-papi-updateReserve-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence/>
+    </resource>
+
+    <resource methods="POST" uri-template="/api/claim/{claimId}/reserves">
+        <inSequence>
+            <sequence key="claim-papi-postReserve-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence/>
+    </resource>
+
+    <!-- Loss Items -->
+    <resource methods="GET" uri-template="/api/claim/{claimId}/loss-items">
+        <inSequence>
+            <sequence key="claim-papi-getLossItemsByClaimId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence/>
+    </resource>
+
+    <!-- Inspection Reports -->
+    <resource methods="GET" uri-template="/claim/{claimId}/inspection-reports">
+        <inSequence>
+            <sequence key="claim-papi-get-inspection-reports-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence"/>
+            <respond/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim/{claimId}/assign">
+        <inSequence>
+            <sequence key="get-assignment-papi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim/{claimId}/fraud-check">
+        <inSequence>
+            <sequence key="claim-papi-fraudCheck-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim/{claimId}/inspection-reports">
+        <inSequence>
+            <sequence key="claim-papi-create-loss-inspection-report-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

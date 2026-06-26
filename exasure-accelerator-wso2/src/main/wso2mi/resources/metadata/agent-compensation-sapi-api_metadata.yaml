@@ -1,0 +1,9 @@
+---
+key: "agent-compensation-sapi-api-1.0.0"
+name: "agent-compensation-sapi-api"
+displayName: "agent-compensation-sapi-api"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/agent-compensation-sapi-api"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

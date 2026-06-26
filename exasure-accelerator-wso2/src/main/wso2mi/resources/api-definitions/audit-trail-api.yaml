@@ -1,0 +1,103 @@
+openapi: 3.0.1
+info:
+  title: audit-trail-api
+  description: API Definition of audit-trail-api
+  version: 1.0.0
+servers:
+- url: http://localhost:8290/audit-trail-sapi
+- url: https://localhost:8253/audit-trail-sapi
+paths:
+  /audit-trail:
+    post:
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response
+  /audit-trail/claim/{claimId}:
+    get:
+      parameters:
+      - name: claimId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        default:
+          description: Default response
+  /audit-trail/{quoteId}:
+    get:
+      parameters:
+      - name: quoteId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        default:
+          description: Default response
+  /update/audit-trail/claim/{claimId}:
+    patch:
+      parameters:
+      - name: claimId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response
+  /update/audit-trail/{quoteId}:
+    patch:
+      parameters:
+      - name: quoteId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response

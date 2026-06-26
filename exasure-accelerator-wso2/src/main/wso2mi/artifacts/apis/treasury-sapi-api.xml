@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/treasury-sapi-api" name="treasury-sapi-api" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="PATCH" uri-template="/treasury/transactions/policy">
+        <inSequence>
+            <sequence key="treasury-transactions-for-policySequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/treasury/transactions/claims">
+        <inSequence>
+            <sequence key="treasury-transactions-for-claimSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/treasury/transactions/{treasuryAccountId}">
+        <inSequence>
+            <property name="treasuryAccountId" expression="get-property('uri.var.treasuryAccountId')" scope="default"/>
+            <sequence key="treasury-transactions-balanceSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

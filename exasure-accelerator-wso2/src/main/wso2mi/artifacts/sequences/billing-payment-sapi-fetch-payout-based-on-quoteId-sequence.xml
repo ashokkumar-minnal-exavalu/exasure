@@ -1,0 +1,52 @@
+<sequence name="billing-payment-sapi-fetch-payout-based-on-quoteId-sequence" xmlns="http://ws.apache.org/ns/synapse">
+	<!-- ================= STORE REQUEST JSON ================= -->
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="billing-payment-sapi"/>
+        <with-param name="sequence" value="billing-payment-sapi-fetch-payout-based-on-quoteId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Initiating billing-payment-sapi-fetch-payout-based-on-quoteId-sequence with quoteId: &quot; + params.pathParams.quoteId}}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <variable name="quoteId" type="STRING" expression="${params.pathParams.quoteId}"/>
+    <mongodb.find configKey="WSO2-Accelerator-DB">
+        <collection>agentPayout</collection>
+        <query>{${&quot;{'quoteId': '&quot; + params.pathParams.quoteId + &quot;'}&quot;}}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+    <filter xpath="${length(payload.data) &gt; 0}">
+        <then>
+            <script language="js"><![CDATA[var payload = mc.getPayloadJSON();
+// Equivalent of payload[0] - "_id"
+var resp = payload.data[0];
+// Remove _id field
+if (resp._id !== undefined) {
+    delete resp._id;
+}
+// Set final response
+mc.setPayloadJSON(resp);]]></script>
+        </then>
+        <else>
+            <propertyGroup>
+                <property name="ERROR_MESSAGE" scope="default" type="STRING" expression="${&quot;No record found with the specified quoteId: &quot; + vars.quoteId}" action="set"/>
+                <property name="ERROR_DETAIL" scope="default" type="STRING" expression="${&quot;No record found with the specified quoteId: &quot; + vars.quoteId}" action="set"/>
+                <property name="ERROR_CODE" scope="default" type="STRING" action="set" value="404"/>
+                <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="404"/>
+            </propertyGroup>
+            <variable name="errorMsg" expression="${'Error occurred in billing-payment-sapi for quoteId- ' + vars.quoteId + ' errorMessage- ' + properties.synapse.ERROR_MESSAGE + ' errorDetail- ' + properties.synapse.ERROR_DETAIL + ' errorCode- ' + string(properties.synapse.ERROR_CODE)}" type="STRING"/>
+            <sequence key="billing-payment-sapi-common-fault-sequence"/>
+        </else>
+    </filter>
+	<call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="billing-payment-sapi"/>
+        <with-param name="sequence" value="billing-payment-sapi-store-payout-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Ending billing-payment-sapi-fetch-payout-based-on-quoteId-sequence with quoteId: &quot; + vars.quoteId}}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+	<respond/>
+</sequence>

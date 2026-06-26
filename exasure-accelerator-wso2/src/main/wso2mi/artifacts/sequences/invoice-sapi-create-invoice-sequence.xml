@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="invoice-sapi-create-invoice-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="invoice-sapi"/>
+        <with-param name="sequence" value="invoice-sapi-create-invoice-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started invoice-sapi-create-invoice-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <script language="js"><![CDATA[// Get payload
+var payload = mc.getPayloadJSON();
+
+// Use Java's SimpleDateFormat for exact DWL-like formatting
+var SimpleDateFormat = Packages.java.text.SimpleDateFormat;
+var Date = Packages.java.util.Date;
+
+var sdf = new SimpleDateFormat("yyyyMMddHHSSS");
+var ts = sdf.format(new Date());
+
+// Append fields
+payload.invoiceId = "IN-" + ts;
+payload.status = "GENERATED";
+
+// Set back
+mc.setPayloadJSON(payload);]]></script>
+    <mongodb.insertOne configKey="WSO2-MongoDB-Connection">
+        <collection>Invoice</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>dbResult</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.insertOne>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="invoice-sapi"/>
+        <with-param name="sequence" value="invoice-sapi-create-invoice-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended invoice-sapi-create-invoice-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

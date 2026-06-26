@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="billing-payment-sapi-store-payout-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+	<!-- ================= STORE REQUEST JSON ================= -->
+	<call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="billing-payment-sapi"/>
+        <with-param name="sequence" value="billing-payment-sapi-store-payout-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating billing-payment-sapi-store-payout-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="reqPayload" scope="default" type="STRING" expression="json-eval($)"/>
+    <mongodb.insertOne configKey="WSO2-Accelerator-DB">
+        <collection>agentPayout</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>dbResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+
+    <variable name="INSERTED_COUNT" type="INTEGER" expression="${payload.insertedCount}"/>
+    <filter xpath="${vars.INSERTED_COUNT == 1}">
+        <then>
+            <script language="js"><![CDATA[
+                var reqJson = mc.getProperty("reqPayload");
+                    var log = mc.getServiceLog();
+ if (typeof reqJson === "string") {
+        reqJson = JSON.parse(reqJson);
+    }
+    log.info(typeof reqJson);
+    log.info(reqJson);
+    log.info(reqJson.payoutId);
+                var response = {
+                    payoutId: reqJson.payoutId,
+                    amount: reqJson.amount,
+                    currency: reqJson.currency || "usd",
+                    arrivalDate: reqJson.arrivalDate,
+                    isSuccess: true,
+                    message: "Successfully store the payment."
+                };
+                
+                // Conditionally add fields if they exist
+                if (reqJson.policyNumber != null && reqJson.policyNumber != undefined) {
+                    response.policyNumber = reqJson.policyNumber;
+                }
+                
+                if (reqJson.quoteId != null && reqJson.quoteId != undefined) {
+                    response.quoteId = reqJson.quoteId;
+                }
+                
+                if (reqJson.partyIdentifier != null && reqJson.partyIdentifier != undefined) {
+                    response.partyIdentifier = reqJson.partyIdentifier;
+                }
+                
+                mc.setPayloadJSON(response);
+            ]]></script>
+    
+			<property name="HTTP_SC" value="201" scope="axis2"/>
+        </then>
+        <else>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>${payload}</message>
+            </log>
+        <throwError errorMessage="Mongo data insertion failed"  type="APP:MONGOINSERTFAILED"/>
+        </else>
+    </filter>
+	<call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="billing-payment-sapi"/>
+        <with-param name="sequence" value="billing-payment-sapi-store-payout-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending billing-payment-sapi-store-payout-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+	<respond/>
+</sequence>

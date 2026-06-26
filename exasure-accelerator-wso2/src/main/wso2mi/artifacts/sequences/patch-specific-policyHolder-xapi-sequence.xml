@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="patch-specific-policyHolder-xapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Starting the patch-specific-policyHolder-xapi-sequence***</message>
+    </log>
+    <property name="policyHolderId" expression="get-property('uri.var.policyHolderId')"/>    
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/', get-property('policyHolderId'))"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="policyHolder-papi-restEndpoint"/>
+    </call>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Response from policy Holder PATCH Method XAPI***********</message>
+    </log>
+    <property description="statusCode" expression="$axis2:HTTP_SC" name="statusCode" scope="default" type="STRING"/>    
+    <filter xpath="get-property('statusCode')='200'">
+        <then>
+            <payloadFactory description="Response poayload" media-type="json">
+                <format>
+					$1
+				</format>
+                <args>
+                    <arg evaluator="json" expression="$"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property expression="get-property('statusCode')" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorMessage)" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorDescription)" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <sequence key="policyHolder-xapi-fault-sequence"/>
+        </else>
+    </filter>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Ending the API call for patch-specific-policyHolder-xapi-sequence***********</message>
+    </log>
+</sequence>

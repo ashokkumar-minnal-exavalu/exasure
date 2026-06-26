@@ -1,0 +1,555 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="agent-compensation-implementation_policy-admin-papi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+
+    <log level="custom">
+        <property name="MESSAGE" value="Started Agent Compensation Scheduler"/>
+    </log>
+
+    <!-- ================================================================
+         STEP 1: Get All Policies
+    ================================================================ -->
+    <sequence key="get-all-policies-admin-papi-sequence"/>
+
+    <property name="allPolicies" expression="json-eval($)" scope="default"/>
+
+    <script language="js"><![CDATA[
+        var payload = mc.getPayloadJSON();
+        if (!Array.isArray(payload)) {
+            payload = [];
+        }
+        var filtered = payload.filter(function(policy) {
+            return policy.intermediary != null &&
+                policy.intermediary !== "" &&
+                policy.intermediary.partyTypeCode === "AGENT";
+        });
+        mc.setPayloadJSON({ agentPolicies: filtered });
+    ]]></script>
+    <enrich>
+        <source clone="false" type="body"/>
+        <target action="replace" type="property" property="agentPolicies_ORIGINAL_PAYLOAD"/>
+    </enrich>
+    <log level="custom">
+        <property name="MESSAGE" value="Agent Policies Count"/>
+        <property name="COUNT"   expression="json-eval($.agentPolicies.length())"/>
+    </log>
+
+    <!-- ================================================================
+         STEP 3: Create Commissions — iterate replaces foreach so that
+         <call> is allowed inside the loop body.
+    ================================================================ -->
+    <iterate expression="json-eval($.agentPolicies)" sequential="true"
+             continueParent="true" preservePayload="false"
+             id="createCommissionsLoop">
+        <target>
+            <sequence>
+                <log level="custom">
+                    <property name="MESSAGE" value="Inside iterate (create commissions)++++++++"/>
+                </log>
+                <!-- Transform each policy into a commission request -->
+                <script language="js"><![CDATA[
+                    var policy = mc.getPayloadJSON();
+                    mc.setPayloadJSON({
+                        quoteId:              policy.quote.quoteId,
+                        policyNumber:         policy.policyNumber,
+                        agentIdentifier:      policy.intermediary.partyIdentifier,
+                        commissionStatusCode: "CALCULATED",
+                        payoutStatusCode:     "PENDING",
+                        commissionAmount:     policy.pricing.totalPremium * 0.10,
+                        currencyCode:         "USD"
+                    });
+                ]]></script>
+                <property name="HTTP_METHOD" scope="axis2" value="POST"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" value="/agent-compensations"/>
+                <call blocking="true">
+                    <endpoint key="agent-compensation-sapi-restEndpoint"/>
+                </call>
+                <log level="custom">
+                    <property name="MESSAGE" value="Response received from create agent compensation endpoint++++++++"/>
+                </log>
+            </sequence>
+        </target>
+    </iterate>
+
+    <!-- Restore original agent-policies payload after the iterate -->
+    <enrich>
+        <source clone="false" property="agentPolicies_ORIGINAL_PAYLOAD" type="property"/>
+        <target action="replace" type="body"/>
+    </enrich>
+
+    <!-- ================================================================
+         STEP 4: Extract unique agentId + quoteId pairs
+    ================================================================ -->
+    <script language="js"><![CDATA[
+        var agentPolicies = mc.getPayloadJSON().agentPolicies;
+        var seen  = {};
+        var pairs = [];
+
+        agentPolicies.forEach(function(policy) {
+            var agentId = policy.intermediary.partyIdentifier;
+            var quoteId = policy.quote.quoteId;
+            var key     = agentId + "-" + quoteId;
+            if (!seen[key]) {
+                seen[key] = true;
+                pairs.push({ agentId: agentId, quoteId: quoteId });
+            }
+        });
+
+        mc.setPayloadJSON({ agentQuotePairs: pairs });
+    ]]></script>
+    <log level="custom">
+        <property name="MESSAGE" value="Agent + Quote List"/>
+        <property name="PAIRS"   expression="json-eval($.agentQuotePairs)"/>
+    </log>
+
+    <!-- ================================================================
+         STEP 5: Generate Statement per Agent + Quote
+         Uses iterate (sequential) instead of foreach so that <call>
+         and 2-arg mc.setProperty / mc.getProperty are legal.
+    ================================================================ -->
+<!-- ================================================================
+     STEP 5: Generate Statement per Agent + Quote
+================================================================ -->
+<iterate expression="json-eval($.agentQuotePairs)"
+         sequential="true"
+         continueParent="true"
+         preservePayload="false"
+         id="statementLoop">
+
+    <target>
+        <sequence>
+
+            <log level="custom">
+                <property name="MESSAGE"
+                          value="Reached Inside Second Iterate"/>
+            </log>
+
+            <!-- ====================================================
+                 STEP 5.0 : Extract agentId + quoteId
+            ==================================================== -->
+
+            <script language="js"><![CDATA[
+                var pair = mc.getPayloadJSON();
+
+                mc.setProperty(
+                    "currentAgentId",
+                    pair.agentId
+                );
+
+                mc.setProperty(
+                    "currentQuoteId",
+                    pair.quoteId
+                );
+            ]]></script>
+
+            <log level="custom">
+                <property name="MESSAGE"
+                          value="Processing"/>
+
+                <property name="AGENT_ID"
+                          expression="get-property('currentAgentId')"/>
+
+                <property name="QUOTE_ID"
+                          expression="get-property('currentQuoteId')"/>
+            </log>
+
+            <!-- ====================================================
+                 STEP 5.1 : GET Commissions
+            ==================================================== -->
+
+            <property name="HTTP_METHOD"
+                      scope="axis2"
+                      value="GET"/>
+
+            <property name="REST_URL_POSTFIX"
+                      scope="axis2"
+                      expression="fn:concat('/agent-compensations?agentId=', get-property('currentAgentId'))"/>
+
+            <call blocking="true">
+                <endpoint key="agent-compensation-sapi-restEndpoint"/>
+            </call>
+
+<!-- =========================================================
+     Parse commissions response.
+     Mule equivalent: <set-variable name="allCommissions"
+                       value="#[payload default []]"/>
+                      <set-variable name="compensations"
+                       value="#[vars.allCommissions filter (c) ->
+                               c.quoteId == vars.quoteId]"/>
+     Mule treats the payload as the array DIRECTLY (no .data
+     envelope). We mirror that, with a defensive fallback in
+     case the SAPI ever wraps the response as {data:[...]}.
+     We also coerce Java lists from GraalVM into JS arrays.
+========================================================= -->
+<script language="js"><![CDATA[
+
+    var response = mc.getPayloadJSON();
+
+    function toJsArray(maybeList) {
+        if (maybeList == null) return [];
+        if (Array.isArray(maybeList)) return maybeList;
+        // GraalVM / Rhino may surface a java.util.List here
+        if (typeof maybeList.iterator === "function") {
+            var tmp = [];
+            var it = maybeList.iterator();
+            while (it.hasNext()) { tmp.push(it.next()); }
+            return tmp;
+        }
+        return [];
+    }
+
+    var all = [];
+    if (response != null) {
+        if (Array.isArray(response) || typeof response.iterator === "function") {
+            // Mule shape: payload IS the array
+            all = toJsArray(response);
+        } else if (response.data != null) {
+            // Defensive: SAPI returns { data: [...] }
+            all = toJsArray(response.data);
+        }
+    }
+
+    var currentQuoteId =
+        String(mc.getProperty("currentQuoteId") || "").trim();
+
+    var filtered = [];
+    for (var i = 0; i < all.length; i++) {
+        var item = all[i];
+        var itemQuoteId = String((item && item.quoteId) || "").trim();
+        if (itemQuoteId == currentQuoteId) {
+            filtered.push(item);
+        }
+    }
+
+    mc.setProperty("compensations",      JSON.stringify(filtered));
+    mc.setProperty("compensationsCount", String(filtered.length));
+
+    mc.getServiceLog().info("TOTAL COMMISSIONS = "    + all.length);
+    mc.getServiceLog().info("FILTERED COMMISSIONS = " + filtered.length);
+    mc.getServiceLog().info("CURRENT QUOTE = "        + currentQuoteId);
+    // One-shot shape probe — remove once verified in logs
+    mc.getServiceLog().info("RESPONSE_SHAPE = " +
+        (response == null ? "null"
+            : (Array.isArray(response) ? "array"
+                : (response.data != null ? "envelope.data" : "object-no-data"))));
+
+]]></script>
+
+            <!-- ====================================================
+                 STEP 5.1.1 : Skip if no commissions
+            ==================================================== -->
+
+            <filter xpath="get-property('compensationsCount') = '0'">
+
+                <then>
+
+                    <log level="custom">
+                        <property name="MESSAGE"
+                                  value="No commissions for agent/quote, skipping"/>
+
+                        <property name="AGENT_ID"
+                                  expression="get-property('currentAgentId')"/>
+
+                        <property name="QUOTE_ID"
+                                  expression="get-property('currentQuoteId')"/>
+                    </log>
+
+                </then>
+
+                <else>
+
+                    <!-- ============================================
+                         STEP 5.2 : Get Existing Statements
+                    ============================================ -->
+
+                    <property name="HTTP_METHOD"
+                              scope="axis2"
+                              value="GET"/>
+
+                    <property name="REST_URL_POSTFIX"
+                              scope="axis2"
+                              expression="fn:concat('/agents/', get-property('currentAgentId'), '/statements')"/>
+
+                    <call blocking="false">
+                        <endpoint key="agent-compensation-sapi-restEndpoint"/>
+                    </call>
+
+                    <!-- ============================================
+                         Handle existing statements
+                    ============================================ -->
+
+                    <filter xpath="get-property('axis2','HTTP_SC') = '404'">
+
+                        <then>
+
+                            <log level="custom">
+                                <property name="MESSAGE"
+                                          value="No statements found (404), treating as empty"/>
+                            </log>
+
+                            <script language="js"><![CDATA[
+                                mc.setProperty(
+                                    "existingStatements",
+                                    "[]"
+                                );
+                            ]]></script>
+
+                        </then>
+
+                        <else>
+
+                            <!-- ====================================
+                                 Parse existing-statements response.
+                                 Same Mule contract: payload IS the
+                                 array. Defensive fallback for
+                                 {data:[...]} envelope.
+                            ==================================== -->
+
+                            <script language="js"><![CDATA[
+
+                                var response = mc.getPayloadJSON();
+
+                                function toJsArray(maybeList) {
+                                    if (maybeList == null) return [];
+                                    if (Array.isArray(maybeList)) return maybeList;
+                                    if (typeof maybeList.iterator === "function") {
+                                        var tmp = [];
+                                        var it = maybeList.iterator();
+                                        while (it.hasNext()) { tmp.push(it.next()); }
+                                        return tmp;
+                                    }
+                                    return [];
+                                }
+
+                                var stmts = [];
+                                if (response != null) {
+                                    if (Array.isArray(response) ||
+                                            typeof response.iterator === "function") {
+                                        stmts = toJsArray(response);
+                                    } else if (response.data != null) {
+                                        stmts = toJsArray(response.data);
+                                    }
+                                }
+
+                                mc.setProperty(
+                                    "existingStatements",
+                                    JSON.stringify(stmts)
+                                );
+
+                            ]]></script>
+
+                        </else>
+
+                    </filter>
+
+                    <!-- ============================================
+                         STEP 5.3 : Duplicate Detection
+                    ============================================ -->
+
+                    <!-- ============================================
+                         MULE-EQUIVALENT DUPLICATE FIX
+                    ============================================ -->
+
+                    <script language="js"><![CDATA[
+
+                        var stmts = JSON.parse(
+                            mc.getProperty("existingStatements") || "[]"
+                        );
+
+                        var agentId =
+                            String(
+                                mc.getProperty("currentAgentId") || ""
+                            ).trim();
+
+                        var quoteId =
+                            String(
+                                mc.getProperty("currentQuoteId") || ""
+                            ).trim();
+
+                        var now = new Date();
+
+                        var month =
+                            now.getFullYear() + "-" +
+                            ("0" + (now.getMonth() + 1)).slice(-2);
+
+                        var monthFrom =
+                            month + "-01";
+
+                        var isDuplicate = false;
+
+                        for (var i = 0; i < stmts.length; i++) {
+
+                            var s = stmts[i];
+
+                            var stmtAgent =
+                                String(
+                                    s.agentIdentifier || ""
+                                ).trim();
+
+                            var stmtQuote =
+                                String(
+                                    s.quoteId || ""
+                                ).trim();
+
+                            var stmtFrom = "";
+
+                            if (s.statementPeriod &&
+                                s.statementPeriod.from != null) {
+
+                                stmtFrom =
+                                    String(
+                                        s.statementPeriod.from
+                                    ).trim();
+                            }
+
+                            /* ====================================
+                                FIX:
+                               Handles:
+                               2026-05-01
+                               2026-05-01T00:00:00.000Z
+                            ==================================== */
+
+                            if (
+                                stmtAgent == agentId &&
+                                stmtQuote == quoteId &&
+                                stmtFrom.indexOf(monthFrom) === 0
+                            ) {
+
+                                isDuplicate = true;
+
+                                break;
+                            }
+                        }
+
+                        mc.setProperty(
+                            "isDuplicate",
+                            String(isDuplicate)
+                        );
+
+                        mc.setProperty(
+                            "currentMonthFrom",
+                            monthFrom
+                        );
+
+                    ]]></script>
+
+                    <!-- ============================================
+                         Duplicate Check
+                    ============================================ -->
+
+                    <filter xpath="get-property('isDuplicate') = 'true'">
+
+                        <then>
+
+                            <log level="custom">
+                                <property name="MESSAGE"
+                                          value="Duplicate found, skipping"/>
+
+                                <property name="AGENT_ID"
+                                          expression="get-property('currentAgentId')"/>
+
+                                <property name="QUOTE_ID"
+                                          expression="get-property('currentQuoteId')"/>
+                            </log>
+
+                        </then>
+
+                        <else>
+
+                            <!-- ====================================
+                                 Generate Statement
+                            ==================================== -->
+
+                            <script language="js"><![CDATA[
+
+                                var comps = JSON.parse(
+                                    mc.getProperty("compensations")
+                                    || "[]"
+                                );
+
+                                var agentId =
+                                    mc.getProperty("currentAgentId");
+
+                                var quoteId =
+                                    mc.getProperty("currentQuoteId");
+
+                                var monthFrom =
+                                    mc.getProperty("currentMonthFrom");
+
+                                var now = new Date();
+
+                                var m = now.getMonth() + 1;
+
+                                var d = now.getDate();
+
+                                var today =
+                                    now.getFullYear() + "-"
+                                    + (m < 10 ? "0" + m : "" + m)
+                                    + "-"
+                                    + (d < 10 ? "0" + d : "" + d);
+
+                                var totalCalc = comps.reduce(
+                                    function(acc, c) {
+
+                                        return acc +
+                                            (c.commissionAmount || 0);
+
+                                    }, 0
+                                );
+
+                                mc.setPayloadJSON({
+
+                                    agentIdentifier: agentId,
+
+                                    quoteId: quoteId,
+
+                                    statementPeriod: {
+                                        from: monthFrom,
+                                        to: today
+                                    },
+
+                                    currencyCode: "USD",
+
+                                    summary: {
+                                        totalCalculatedAmount: totalCalc,
+                                        totalPaidAmount: 0,
+                                        netPayableAmount: totalCalc
+                                    },
+
+                                    commissionCount: comps.length,
+
+                                    statementStatusCode: "OPEN"
+                                });
+
+                            ]]></script>
+
+                            <property name="HTTP_METHOD"
+                                      scope="axis2"
+                                      value="POST"/>
+
+                            <property name="REST_URL_POSTFIX"
+                                      scope="axis2"
+                                      expression="fn:concat('/agents/', get-property('currentAgentId'), '/statements/generate')"/>
+
+                            <call blocking="true">
+                                <endpoint key="agent-compensation-sapi-restEndpoint"/>
+                            </call>
+
+                            <log level="custom">
+                                <property name="MESSAGE"
+                                          value="Statement generated successfully"/>
+                            </log>
+
+                        </else>
+
+                    </filter>
+
+                </else>
+
+            </filter>
+
+        </sequence>
+    </target>
+
+</iterate>
+
+</sequence>

@@ -1,0 +1,10 @@
+---
+key: "policy-sapi-api-1.0.0"
+name : "policy-sapi-api"
+displayName : "policy-sapi-api"
+description: "policy-sapi-api"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/policy-sapi"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

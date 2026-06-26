@@ -1,0 +1,82 @@
+openapi: 3.0.1
+info:
+  title: claim-assignment-sapi-api
+  description: API Definition of claim-assignment-sapi-api
+  version: 1.0.0
+servers:
+- url: http://localhost:8290/claim-assignment-sapi
+- url: https://localhost:8253/claim-assignment-sapi
+paths:
+  /api/adjusters:
+    get:
+      responses:
+        default:
+          description: Default response
+    post:
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response
+  /api/adjusters/{adjusterId}:
+    get:
+      parameters:
+      - name: adjusterId
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        default:
+          description: Default response
+  /claim/{claimId}/assign:
+    get:
+      parameters:
+      - name: claimId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        default:
+          description: Default response
+    post:
+      parameters:
+      - name: claimId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response

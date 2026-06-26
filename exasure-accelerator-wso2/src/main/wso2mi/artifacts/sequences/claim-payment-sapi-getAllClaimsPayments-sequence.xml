@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-sapi-getAllClaimsPayments-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimsStatus" expression="get-property('query.param.claimsStatus')" scope="default"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-sapi-getAllClaimsPayments-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started claim-payment-sapi-getAllClaimsPayments-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <sequence key="get-last-processed-ts-sequence"/>
+    <payloadFactory media-type="json">
+        <format>
+            {
+            "claims.claimsStatus": "$1",
+            "approval.approvalTimestamp": {
+            "$gt": $2
+            }
+            }
+        </format>
+        <args>
+            <arg evaluator="xml" expression="$ctx:claimsStatus"/>
+            <arg evaluator="xml" expression="floor(number($ctx:LAST_PROCESSED_TS) div 1000)"/>
+        </args>
+    </payloadFactory>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>TIMESTAMP</message>
+        <property name="TS" expression="json-eval($)"/>
+    </log>
+    <property name="mongoQuery" expression="json-eval($)"/>
+    <mongodb.find configKey="MongoDB-Connection-claim-payment">
+        <collection>ClaimsToBePaid</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+    <log level="full">
+        <property name="MongoResponse" expression="json-eval($)"/>
+    </log>
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <payloadFactory media-type="json" template-type="Default">
+                <format>
+                    $1
+                </format>
+                <args>
+                    <arg expression="$.data" evaluator="json"/>
+                </args>
+            </payloadFactory>
+            <script language="js"><![CDATA[
+    var input = mc.getPayloadJSON();
+
+    var result = [];
+
+    for (var i = 0; i < input.length; i++) {
+        var item = input[i];
+
+        result.push({
+            claimSettlementId: item.claims.claimSettlementId,
+            claims: item.claims,
+            payment: item.payment,
+            bankDetails: item.bankDetails
+        });
+    }
+
+    // Convert to STRING
+    mc.setProperty("transformedResponse", JSON.stringify(result));
+]]></script>
+            <sequence key="store-last-processed-ts-sequence"/>
+            <payloadFactory description="ResponsePayload" media-type="json" template-type="Default">
+                <format>$1</format>
+                <args>
+                    <arg expression="$ctx:transformedResponse" evaluator="json"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="ClaimsPayments not found" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="claim-payment-sapi"/>
+                <with-param name="sequence" value="claim-payment-sapi-getAllClaimsPayments-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="claim-payment-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-sapi-getAllClaimsPayments-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="END claim-payment-sapi-getAllClaimsPayments-sequence"/>
+        <with-param name="status" value="Ended"/>
+    </call-template>
+</sequence>

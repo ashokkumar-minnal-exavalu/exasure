@@ -1,0 +1,49 @@
+openapi: 3.0.1
+info:
+  title: user-sapi-api
+  description: API Definition of user-sapi-api
+  version: 1.0.0
+servers:
+- url: http://localhost:8290/user-sapi
+- url: https://localhost:8253/user-sapi
+paths:
+  /signup:
+    post:
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response
+  /login:
+    post:
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response

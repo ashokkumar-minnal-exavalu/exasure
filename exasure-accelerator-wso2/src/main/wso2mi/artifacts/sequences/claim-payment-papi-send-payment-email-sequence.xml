@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-send-payment-email-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<propertyGroup description="emailProperties">
+    <property name="messageType" value="text/html" scope="axis2"/>
+    <property name="ContentType" value="text/html" scope="axis2"/>
+    <property name="mail.smtp.from" value="noreply@exasure.com"/>
+    <property name="mail.smtp.to" value="exavaluinsuranceaccelarator@gmail.com"/>
+    <property name="mail.smtp.subject" scope="axis2" type="STRING" expression="concat('Payment Completed – Claim ', $ctx:claimId)"/>
+    <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    <property name="LatencyMs" value="0"/>
+</propertyGroup>
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="claim-payment-sapi"/>
+    <with-param name="sequence" value="claim-payment-papi-send-payment-email-sequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="{${&quot;Initiating claim-payment-papi-send-payment-email-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+    <with-param name="status" value="START"/>
+</call-template>
+
+<script language="js"><![CDATA[
+      var initPayload = JSON.parse(mc.getProperty("initialpayload"));
+      var now = new Date();
+      var dateStr = now.toDateString();
+
+      var claimId       = (initPayload.claims && initPayload.claims.claimId)        ? initPayload.claims.claimId        : "";
+      var policyId      = (initPayload.claims && initPayload.claims.policyId)       ? initPayload.claims.policyId       : "";
+      var policyHolder  = (initPayload.claims && initPayload.claims.policyHolderId) ? initPayload.claims.policyHolderId : "Customer";
+      var claimAmount   = (initPayload.payment && initPayload.payment.claimAmount)  ? initPayload.payment.claimAmount   : "";
+      var currency      = (initPayload.payment && initPayload.payment.currency)     ? initPayload.payment.currency      : "";
+      var paymentMethod = (initPayload.payment && initPayload.payment.paymentMethod)? initPayload.payment.paymentMethod : "";
+      var effectiveDate = (initPayload.payment && initPayload.payment.effectiveDate)? initPayload.payment.effectiveDate : "";
+
+      var html = '<!doctype html>' +
+        '<html lang="en"><head><meta charset="utf-8">' +
+        '<style>' +
+        'body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f4f6f8;color:#333}' +
+        '.container{max-width:700px;margin:20px auto;background:#fff;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,0.15)}' +
+        '.header{background-color:#28a745;padding:24px;text-align:center;color:#fff;font-size:26px;font-weight:bold}' +
+        '.body{padding:30px;font-size:15px;line-height:1.6}' +
+        '.section-title{font-size:20px;font-weight:bold;margin-bottom:20px;text-align:center;color:#28a745}' +
+        '.summary-table{width:100%;border-collapse:collapse;margin:20px 0}' +
+        '.summary-table td{padding:10px;border-bottom:1px solid #eaeaea}' +
+        '.summary-table td.label{font-weight:bold;width:40%}' +
+        '.footer{padding:20px;text-align:center;font-size:12px;color:#9aa7bf}' +
+        '.button{background:#28a745;color:#fff;padding:12px 22px;text-decoration:none;font-size:15px;font-weight:bold;border-radius:6px;display:inline-block}' +
+        '</style></head><body>' +
+        '<div class="container">' +
+        '<div class="header">Payment Completed for Claim ' + claimId + '</div>' +
+        '<div class="body">' +
+        '<p>' + dateStr + '</p>' +
+        '<p>Dear Policyholder ' + policyHolder + ',</p>' +
+        '<p>We are pleased to inform you that the payment associated with your approved insurance claim has been successfully processed.</p>' +
+        '<div class="section-title">Payment Summary</div>' +
+        '<table class="summary-table">' +
+        '<tr><td class="label">Claim Number</td><td>' + claimId + '</td></tr>' +
+        '<tr><td class="label">Policy Number</td><td>' + policyId + '</td></tr>' +
+        '<tr><td class="label">Payment Amount</td><td>' + claimAmount + ' ' + currency + '</td></tr>' +
+        '<tr><td class="label">Payment Method</td><td>' + paymentMethod + '</td></tr>' +
+        '<tr><td class="label">Payment Date</td><td>' + effectiveDate + '</td></tr>' +
+        '</table>' +
+        '<p>Please allow standard banking timelines for the funds to be credited to your account.</p>' +
+        '<div style="margin:30px 0;text-align:center;">' +
+        '<a href="http://localhost:5173/home" class="button">View Payment Details</a>' +
+        '</div>' +
+        '<p>If you have any questions, please contact our Claims Support team at <strong>exavaluinsuranceaccelarator@gmail.com</strong>.</p>' +
+        '<p>Sincerely,<br><strong>Exasure Insurance Integration Cloud</strong><br>Claims &amp; Payments Operations</p>' +
+        '</div>' +
+        '<div class="footer">Exasure Insurance Integration Cloud | http://localhost:5173/home<br>This is an automated message. Please do not reply.</div>' +
+        '</div></body></html>';
+
+      mc.setProperty("emailBody",    html,         "default");
+      mc.setProperty("emailSubject", "Payment Completed – Claim " + claimId, "default");
+    ]]></script>
+    <email.send configKey="sendEmail-claim-payment-papi">
+        <from>exavaluinsuranceaccelarator@gmail.com</from>
+        <personalName>Exasure Insurance</personalName>
+        <to>anichakraborty0007@gmail.com</to>
+        <cc></cc>
+        <bcc></bcc>
+        <replyTo></replyTo>
+        <subject>${properties.synapse.emailSubject}</subject>
+        <content>${properties.synapse.emailBody}</content>
+        <contentType>text/html</contentType>
+        <encoding>UTF-8</encoding>
+        <attachments></attachments>
+        <inlineImages>[]</inlineImages>
+        <contentTransferEncoding>Base64</contentTransferEncoding>
+        <responseVariable>email_send_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </email.send>
+    <!--
+      WSO2 MI Email Connector v2.x syntax.
+      Add the Email connector JAR to your project dependencies.
+      Connector operation: email:send
+    -->
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-send-payment-email-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Ending claim-payment-papi-send-payment-email-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+</sequence>

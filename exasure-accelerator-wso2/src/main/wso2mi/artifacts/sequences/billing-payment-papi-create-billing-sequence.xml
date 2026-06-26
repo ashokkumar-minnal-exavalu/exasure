@@ -1,0 +1,1105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="billing-payment-papi-create-billing-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="billing-payment-papi"/>
+        <with-param name="sequence" value="billing-payment-papi-create-billing-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started billing-payment-papi-create-billing-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="quoteId" expression="json-eval($.quoteId)"/>
+    <property name="inputData" expression="json-eval($)" type="STRING"/>
+    <script language="js"><![CDATA[
+var payload = mc.getPayloadJSON();
+
+var now = new Date();
+var billingAccountId = "BA" + now.getTime();
+
+var premiumAmount = Math.round(payload.totalPremium);
+
+// Due date +7 days
+var dueDateObj = new Date();
+dueDateObj.setDate(dueDateObj.getDate() + 7);
+
+// Manual padding function (ES5 safe)
+function pad(n) {
+    return (n < 10 ? '0' : '') + n;
+}
+
+// Format date YYYY-MM-DD
+function formatDate(date) {
+    var yyyy = date.getFullYear();
+    var mm = pad(date.getMonth() + 1);
+    var dd = pad(date.getDate());
+    return yyyy + "-" + mm + "-" + dd;
+}
+var response = {
+    quoteId: payload.quoteId,
+    partyIdentifier: payload.partyIdentifier,
+    billingAccountId: billingAccountId,
+    payerType: "POLICYHOLDER",
+    billingFrequency: "ANNUAL",
+    premiumAmount: premiumAmount,
+    currency: payload.currency,
+    taxIncluded: false,
+    dueDate: formatDate(dueDateObj)
+};
+
+// Conditional field
+if (payload.policyNumber !== undefined && payload.policyNumber !== null) {
+    response.policyNumber = payload.policyNumber;
+}
+
+mc.setPayloadJSON(response);
+]]></script>
+    <property name="HTTP_METHOD" value="POST" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/api/billing-accounts"/>
+    <call>
+        <endpoint key="billing-account-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-account-sapi" expression="$body"/>
+    </log>
+    <property name="billingAccountId" expression="json-eval($.billingAccountId)"/>
+    <property name="HTTP_METHOD" value="GET" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('api/quote/', $ctx:quoteId)"/>
+    <call>
+        <endpoint key="policy-admin-papi-resrEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-admin-papi" expression="$body"/>
+    </log>
+    <property name="licenseState" expression="json-eval($.insurableObjects[0].vehicle.licenseState)" scope="default" type="STRING"/>
+    <property name="HTTP_METHOD" value="GET" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/taxes/rates/', $ctx:licenseState)"/>
+    <call>
+        <endpoint key="invoice-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-invoice-papi" expression="$body"/>
+    </log>
+    <script language="js"><![CDATA[
+
+var initPayload = mc.getProperty("inputData");
+
+if (typeof initPayload === "string") {
+    initPayload = JSON.parse(initPayload);
+}
+var billingAccountId = mc.getProperty("billingAccountId");
+
+// Defensive checks
+if (!initPayload) {
+    initPayload = {};
+}
+
+// Round function 
+function round(val) {
+    return Math.round(val);
+}
+
+// premiumAmount = round(vars.initPayload.totalPremium) default 1
+var premiumAmount = (initPayload.totalPremium !== undefined && initPayload.totalPremium !== null)
+    ? round(initPayload.totalPremium)
+    : 1;
+
+// payload.netTaxRate → comes from previous API response (current payload)
+var payload = mc.getPayloadJSON();
+
+var netTaxRate = (payload && payload.netTaxRate) ? payload.netTaxRate : 0;
+
+// taxAmount = round(premiumAmount * payload.netTaxRate)
+var taxAmount = round(premiumAmount * netTaxRate);
+
+// invoiceAmount = round(premiumAmount + taxAmount)
+var invoiceAmount = round(premiumAmount + taxAmount);
+
+// Construct response
+var response = {
+    billingAccountId: billingAccountId,
+    quoteId: initPayload.quoteId,
+    partyIdentifier: initPayload.partyIdentifier,
+    transactionType: initPayload.transactionType,
+    premiumAmount: premiumAmount,
+    taxAmount: taxAmount,
+    invoiceAmount: invoiceAmount,
+    currency: initPayload.currency
+};
+
+// Conditional field: policyNumber
+if (initPayload.policyNumber !== undefined && initPayload.policyNumber !== null) {
+    response.policyNumber = initPayload.policyNumber;
+}
+
+// Set final payload
+mc.setPayloadJSON(response);
+
+]]></script>
+    <property name="HTTP_METHOD" value="POST" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/api/invoices"/>
+    <call>
+        <endpoint key="invoice-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-invoice-post-papi" expression="$body"/>
+    </log>
+    <property name="invoicePayload" expression="json-eval($)" type="STRING"/>
+    <filter xmlns="http://ws.apache.org/ns/synapse" source="$axis2:HTTP_SC" regex="200|201">
+        <!-- ✅ SUCCESS FLOW -->
+        <then>
+            <property name="currency" expression="json-eval($ctx:inputData.currency)" scope="default"/>
+            <property name="quoteId" expression="json-eval($ctx:inputData.quoteId)" scope="default"/>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "amount": $1,
+                    "currency": "$2",
+                    "quoteId": "$3"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.invoiceAmount"/>
+                    <arg evaluator="xml" expression="$ctx:currency"/>
+                    <arg evaluator="xml" expression="$ctx:quoteId"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <!-- ❌ ERROR FLOW -->
+        <else>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "INVOICE Creation Failed",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <!-- error.errorType.identifier -->
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <!-- error.description default -->
+                    <arg evaluator="json" expression="$.error.description"/>
+                    <!-- correlationId -->
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <!-- timestamp -->
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <property name="HTTP_SC" value="500" scope="axis2"/>
+            <respond/>
+        </else>
+    </filter>
+    <property name="HTTP_METHOD" value="POST" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/api/billing-payment/payment-intent"/>
+    <script language="js"><![CDATA[
+var uuid = java.util.UUID.randomUUID().toString();
+mc.setProperty("idempotencyKey", "create-" + uuid);
+]]></script>
+    <property name="Idempotency-Key" scope="transport" expression="$ctx:idempotencyKey"/>
+    <call>
+        <endpoint key="billing-payment-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-billing-sapi-post" expression="$body"/>
+    </log>
+    <filter xmlns="http://ws.apache.org/ns/synapse" source="$axis2:HTTP_SC" regex="200|201">
+        <!-- ✅ SUCCESS FLOW -->
+        <then>
+            <property name="paymentId" expression="json-eval($.paymentId)" scope="default" type="STRING"/>
+        </then>
+        <!-- ❌ ERROR FLOW -->
+        <else>
+            <!-- Handle default message -->
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "PAYMENT-Intent Creation failed",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <property name="HTTP_SC" value="500" scope="axis2"/>
+            <respond/>
+        </else>
+    </filter>
+    <script language="js"><![CDATA[
+
+var initPayload = mc.getProperty("inputData");
+
+// Parse if stored as STRING
+if (typeof initPayload === "string") {
+    initPayload = JSON.parse(initPayload);
+}
+
+// Build response
+var response = {
+    payment_method: "pm_card_visa",
+    quoteId: initPayload.quoteId,
+    partyIdentifier: initPayload.partyIdentifier
+};
+
+// Conditional field: policyNumber
+if (initPayload.policyNumber !== undefined && initPayload.policyNumber !== null) {
+    response.policyNumber = initPayload.policyNumber;
+}
+
+// Set payload
+mc.setPayloadJSON(response);
+
+]]></script>
+    <property name="HTTP_METHOD" value="POST" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/billing-payment/payment/', $ctx:paymentId, '/confirm')"/>
+    <!-- Confirm API -->
+    <script language="js"><![CDATA[
+var paymentId = mc.getProperty("paymentId");
+var uuid = java.util.UUID.randomUUID().toString();
+mc.setProperty("idempotencyKey", "confirm-" + paymentId + "-" + uuid);
+]]></script>
+    <property name="Idempotency-Key" scope="transport" expression="$ctx:idempotencyKey"/>
+    <call>
+        <endpoint key="billing-payment-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-billing-sapi-confirm" expression="$body"/>
+    </log>
+    <log level="full"/>
+    <filter xmlns="http://ws.apache.org/ns/synapse" source="$axis2:HTTP_SC" regex="200|201">
+        <!-- ✅ SUCCESS FLOW -->
+        <then>
+            <property name="confirmPayment" expression="json-eval($)" scope="default" type="STRING"/>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>confirmPayment</message>
+                <property name="CheckError" expression="get-property('confirmPayment')"/>
+            </log>
+        </then>
+        <!-- ❌ ERROR FLOW -->
+        <else>
+            <!-- Handle default message -->
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "Confirm PAYMENT creation has Failed ",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <property name="HTTP_SC" value="500" scope="axis2"/>
+            <respond/>
+        </else>
+    </filter>
+    <script language="js"><![CDATA[
+
+var payload = mc.getPayloadJSON() || {};
+
+// Build full response object
+var response = {
+    transactionId: payload.transactionId || null,
+    paymentIntentId: payload.paymentIntentId || payload.paymentIntentid || null,
+    amount: payload.amount || 0,
+    currency: payload.currency || null,
+    paymentStatus: payload.status || null
+};
+
+// ✅ Store complete object as property
+mc.setProperty("paymentResponse", JSON.stringify(response));
+
+// ✅ Also set as payload
+mc.setPayloadJSON(response);
+mc.setProperty("response", response);
+
+]]></script>
+    <log level="full"/>
+    <filter source="json-eval($.paymentStatus)" regex="succeeded">
+        <then>
+            <script language="js"><![CDATA[// Get the property (STRING)
+var confirmPaymentStr = mc.getProperty("confirmPayment");
+
+// Parse JSON string to object
+var confirmPayment = JSON.parse(confirmPaymentStr);
+
+// Build response object
+var response = {
+    paymentIntentid: confirmPayment.paymentIntentid,
+    transactionId: confirmPayment.transactionId,
+    quoteId: confirmPayment.quoteId,
+    partyIdentifier: confirmPayment.partyIdentifier,
+    amountReceived: confirmPayment.amount,
+    currency: confirmPayment.currency,
+    captureMethod: confirmPayment.capture_method,
+    confirmation_method: confirmPayment.confirmation_method,
+    created: confirmPayment.created,
+    paymentMethod: confirmPayment.paymentMethod,
+    status: confirmPayment.status
+};
+
+// Conditional field (like DW "if exists")
+if (confirmPayment.policyNumber !== undefined && confirmPayment.policyNumber !== null) {
+    response.policyNumber = confirmPayment.policyNumber;
+}
+
+// Set output back to message body
+mc.setPayloadJSON(response);]]></script>
+        </then>
+        <else>
+            <log level="custom">
+                <property name="PAYMENT_STATUS" value="FAILED"/>
+            </log>
+            <script language="js"><![CDATA[
+
+// -----------------------------------
+// Get payload (if needed later)
+// -----------------------------------
+var responsePayload = mc.getPayloadJSON() || {};
+
+// -----------------------------------
+// Format current date (DW equivalent)
+// -----------------------------------
+function formatDate(dateObj) {
+    var options = {
+        month: "long",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+    };
+    return dateObj.toLocaleString("en-US", options);
+}
+
+var nowFormatted = formatDate(new Date());
+
+// -----------------------------------
+// Subject
+// -----------------------------------
+var subject = "Premium Payment Failed – Action Required";
+mc.setProperty("mail.smtp.subject", subject);
+mc.setProperty("Email_Subject", subject);
+
+// -----------------------------------
+// HTML Body (Failure Template)
+// -----------------------------------
+var emailBody =
+'<!doctype html>' +
+'<html lang="en">' +
+'<head>' +
+'  <meta charset="utf-8">' +
+'  <meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+'  <style>' +
+'    body { margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; background:#f4f6f8; color:#333; }' +
+'    .container { max-width:700px; margin:20px auto; background:#fff; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15); }' +
+'    .header { background:#d00000; padding:24px; text-align:center; color:#fff; font-size:26px; font-weight:bold; }' +
+'    .subheader { text-align:center; padding:10px 0; font-size:14px; color:#ffe6e6; }' +
+'    .body { padding:30px; font-size:15px; line-height:1.6; }' +
+'    .section-title { font-size:20px; font-weight:bold; margin-bottom:20px; text-align:center; }' +
+'    .info-box { background:#fff2f2; border-left:5px solid #d00000; padding:15px; margin:20px 0; border-radius:4px; }' +
+'    .footer { padding:20px; text-align:center; font-size:12px; color:#9aa7bf; }' +
+'  </style>' +
+'</head>' +
+'<body>' +
+'  <div class="container">' +
+'    <div class="header">Premium Payment Failed – Action Required</div>' +
+'    <div class="body">' +
+
+'      <p>' + nowFormatted + '</p>' +
+
+'      <p>Dear User,</p>' +
+
+'      <p>We regret to inform you that the premium payment attempt for your policy was unsuccessful. Unfortunately, the transaction could not be completed at this time.</p>' +
+
+'      <p>This may have occurred due to reasons such as insufficient balance, bank authorization failure, or network issues during the transaction.</p>' +
+
+'      <p>If you believe this payment should have gone through or require any assistance, please contact our support team for further help.</p>' +
+
+'      <p>We appreciate your time with <strong>Exasure IIC</strong> and thank you for choosing us. Should you decide to return in the future, our team will be happy to assist you with new coverage options.</p>' +
+
+'      <p>Sincerely,<br><br>' +
+'      <strong>Exasure IIC</strong><br>' +
+'      Policy & Customer Support</p>' +
+
+'    </div>' +
+'    <div class="footer">' +
+'      Exasure IIC | http://localhost:5173/home<br>' +
+'      This is an automated message. Please do not reply.' +
+'    </div>' +
+'  </div>' +
+'</body>' +
+'</html>';
+
+// -----------------------------------
+// Set email body
+// -----------------------------------
+mc.setProperty("Email_Body", emailBody);
+
+]]></script>
+            <property name="messageType" value="application/json" scope="axis2"/>
+            <property name="ContentType" value="application/json" scope="axis2"/>
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "PAYMENT Status is not succeeded",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <property name="HTTP_SC" value="500" scope="axis2"/>
+            <respond/>
+        </else>
+    </filter>
+    <property name="HTTP_METHOD" value="POST" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/api/billing-payment/store-payment"/>
+    <call>
+        <endpoint key="billing-payment-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-billing-sapi-storePayment" expression="$body"/>
+    </log>
+    <filter source="get-property('axis2','HTTP_SC')" regex="200|201">
+        <then>
+            <script language="js"><![CDATA[function getJson(prop) {
+    var val = mc.getProperty(prop);
+
+    if (val == null) {
+        return {};
+    }
+
+    // Already object (rare but safe check)
+    if (typeof val === 'object') {
+        return val;
+    }
+
+    // Parse STRING safely
+    try {
+        return JSON.parse(val);
+    } catch (e) {
+        throw new Error("Invalid JSON in property: " + prop + " → " + val);
+    }
+}
+
+// Read all properties consistently
+var invoicePayload = getJson("invoicePayload");
+var confirmPayment = getJson("confirmPayment");
+var initpayload = getJson("inputData");
+
+// Build response
+var result = {
+    billingAccountId: invoicePayload.billingAccountId || null,
+    quoteId: confirmPayment.quoteId || null,
+    partyIdentifier: confirmPayment.partyIdentifier || null,
+    premiumAmount: invoicePayload.premiumAmount || 0,
+    invoiceAmount: invoicePayload.invoiceAmount || 0,
+    currency: invoicePayload.currency || "USD",
+    invoiceId: invoicePayload.invoiceId || null,   // ✅ correct source
+    status: "PAID",
+    paidDate: new Date().toISOString(),
+    paymentId: confirmPayment.transactionId || null,
+    transactionType: initpayload.transactionType || null
+};
+
+// Set final payload
+mc.setPayloadJSON(result);
+//mc.setProperty("binaryData", JSON.stringify(result));]]></script>
+        </then>
+        <else>
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "Store PAYMENT Creation has failed",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </else>
+    </filter>
+    <class name="com.example.QuotePdfGeneratorMediator"/>
+    <script language="js"><![CDATA[
+
+// -------------------------------
+// Helper: safely parse JSON props
+// -------------------------------
+function getJson(prop) {
+    var val = mc.getProperty(prop);
+
+    if (val == null) return {};
+
+    if (typeof val === 'object') return val;
+
+    try {
+        return JSON.parse(val);
+    } catch (e) {
+        throw new Error("Invalid JSON in property: " + prop + " → " + val);
+    }
+}
+
+// -------------------------------
+// Read properties
+// -------------------------------
+var confirmPayment = getJson("confirmPayment");
+var initpayload = getJson("inputData");
+
+// -------------------------------
+// IMPORTANT: binaryData is Base64
+// DO NOT JSON.parse()
+// -------------------------------
+var binaryData = mc.getProperty("binaryData");
+
+// -------------------------------
+// Build PDF name
+// -------------------------------
+var pdfName = (initpayload && initpayload.transactionType)
+    ? initpayload.transactionType + ".pdf"
+    : "document.pdf";
+
+// -------------------------------
+// Build final response
+// -------------------------------
+var response = {
+    status: "PAID",
+    paymentId: confirmPayment.transactionId || null,
+    paidDate: confirmPayment.created || null,
+    document: {
+        data: binaryData || null,   // ✅ direct Base64
+        name: pdfName
+    }
+};
+
+// -------------------------------
+// Set final payload
+// -------------------------------
+mc.setPayloadJSON(response);
+
+]]></script>
+    <property name="invoiceId" expression="json-eval($ctx:invoicePayload.invoiceId)" scope="default" type="STRING"/>
+    <property name="HTTP_METHOD" value="PATCH" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/', $ctx:invoiceId, '/mark-paid')"/>
+    <call>
+        <endpoint key="invoice-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-invoice-sapi-patch" expression="$body"/>
+    </log>
+    <filter xmlns="http://ws.apache.org/ns/synapse" source="$axis2:HTTP_SC" regex="200|201">
+        <then>
+            <!-- Success flow -->
+            <script language="js"><![CDATA[var response = mc.getProperty("response");
+if (typeof response === "string") {
+    response = JSON.parse(response);
+}
+
+// Date formatting using Java
+var SimpleDateFormat = Java.type("java.text.SimpleDateFormat");
+var Date = Java.type("java.util.Date");
+
+var sdf = new SimpleDateFormat("MMMM dd, yyyy hh:mm a");
+var formattedDate = sdf.format(new Date());
+
+// Build HTML
+var html =
+'<!doctype html>' +
+'<html lang="en">' +
+'<head>' +
+'  <meta charset="utf-8">' +
+'  <meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+'  <style>' +
+'    body { margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; background:#f4f6f8; color:#333; }' +
+'    .container { max-width:700px; margin:20px auto; background:#fff; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15); }' +
+'    .header { background:#0077b6; padding:24px; text-align:center; color:#fff; font-size:26px; font-weight:bold; }' +
+'    .body { padding:30px; font-size:15px; line-height:1.6; }' +
+'    .info-box { background:#eaf4ff; border-left:5px solid #0077b6; padding:15px; margin:20px 0; border-radius:4px; }' +
+'    .footer { padding:20px; text-align:center; font-size:12px; color:#9aa7bf; }' +
+'  </style>' +
+'</head>' +
+'<body>' +
+'  <div class="container">' +
+'    <div class="header">Premium Payment Confirmation</div>' +
+'    <div class="body">' +
+'      <p>' + formattedDate + '</p>' +
+'      <p>Dear User,</p>' +
+'      <p>We are pleased to inform you that the premium payment for your policy has been <strong>successfully received</strong> by <strong>Exasure IIC</strong>.</p>' +
+'      <p>Your payment has been processed and the policy remains active as per the policy terms and conditions. A summary of the payment details is provided below for your reference:</p>' +
+'      <div class="info-box">' +
+'        <p><strong>Transaction ID:</strong> ' + response.transactionId + '</p>' +
+'        <p><strong>Amount:</strong> ' + response.amount + '</p>' +
+'        <p><strong>Currency:</strong> ' + response.currency + '</p>' +
+'        <p><strong>Payment Status:</strong> ' + response.paymentStatus + '</p>' +
+'      </div>' +
+'      <p>Thank you for choosing <strong>Exasure IIC</strong>. We appreciate your trust and look forward to providing you with reliable insurance protection.</p>' +
+'      <p>Sincerely,<br/><br/>' +
+'      <strong>Exasure IIC</strong><br/>' +
+'      Policy & Customer Support</p>' +
+'    </div>' +
+'    <div class="footer">' +
+'      Exasure IIC | http://localhost:5173/home<br/>' +
+'      This is an automated message. Please do not reply.' +
+'    </div>' +
+'  </div>' +
+'</body>' +
+'</html>';
+
+// Store HTML in property (recommended for email mediator)
+mc.setProperty("emailBody", html);
+
+// OPTIONAL: If you want to send as payload instead
+// mc.setPayloadXML(html);]]></script>
+
+            <property name="messageType" value="application/json" scope="axis2"/>
+            <property name="ContentType" value="application/json" scope="axis2"/>
+        </then>
+        <else>
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "Invoice mark-paid update has failed",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </else>
+    </filter>
+    <script language="js"><![CDATA[// Fetch properties
+var confirmPayment = mc.getProperty("confirmPayment");
+var response = mc.getProperty("response");
+
+var initPayload = mc.getProperty("inputData");   // corrected name
+var invoiceId = mc.getProperty("invoiceId");
+
+// Handle STRING → JSON conversion (important in WSO2)
+if (typeof confirmPayment === "string") {
+    confirmPayment = JSON.parse(confirmPayment);
+}
+
+if (typeof response === "string") {
+    response = JSON.parse(response);
+}
+
+if (typeof initPayload === "string") {
+    initPayload = JSON.parse(initPayload);
+}
+
+// -------- Payment Date Logic (DW equivalent) --------
+// DW: vars.confirmPayment.created as Date as String
+
+var paymentDate = null;
+
+if (confirmPayment) {
+    // Support both possible fields
+    var rawDate = confirmPayment.created || confirmPayment.paymentDate;
+
+    if (rawDate) {
+        var dateObj = new Date(rawDate);
+
+        // Format: yyyy-MM-dd (closest practical equivalent)
+        paymentDate = dateObj.toISOString().split('T')[0];
+    }
+}
+
+// -------- Construct Final Payload --------
+var payload = {
+    paymentDate: paymentDate,
+    receivableStatusCode: "CLOSED",
+    transaction: {
+        transactionId: response ? response.transactionId : null,
+        transactionTypeCode: initPayload ? initPayload.transactionType : null
+    },
+    invoice: {
+        invoiceId: invoiceId
+    }
+};
+
+// Set payload
+mc.setPayloadJSON(payload);]]></script>
+    <log level="full"/>
+    <property name="HTTP_METHOD" value="PATCH" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/api/update/receivables/', $ctx:quoteId)"/>
+    <call>
+        <endpoint key="receivables-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-receivable-sapi" expression="$body"/>
+    </log>
+    <filter source="get-property('axis2','HTTP_SC')" regex="200|201">
+        <then>
+        </then>
+        <else>
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "Update receivable has failed",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </else>
+    </filter>
+    <script language="js"><![CDATA[
+var response = mc.getProperty("response");
+
+var confirmPayment = mc.getProperty("confirmPayment");
+var initPayload = mc.getProperty("inputData");   // initPayload mapped to inputData
+var invoiceId = mc.getProperty("invoiceId");
+
+// Handle STRING → JSON conversion
+if (typeof response === "string") {
+    response = JSON.parse(response);
+}
+
+if (typeof confirmPayment === "string") {
+    confirmPayment = JSON.parse(confirmPayment);
+}
+
+if (typeof initPayload === "string") {
+    initPayload = JSON.parse(initPayload);
+}
+
+// -------- paymentDate (DW: vars.confirmPayment.created) --------
+var paymentDate = null;
+
+if (confirmPayment) {
+    paymentDate = confirmPayment.created || confirmPayment.paymentDate || null;
+}
+
+// -------- lastUpdatedDateTime (DW: now() as DateTime as String) --------
+var lastUpdatedDateTime = new Date().toISOString();
+
+// -------- Construct Payload --------
+var payload = {
+    ledgerStatusCode: "PAID",
+    transactionID: response ? response.transactionId : null,
+    paymentDate: paymentDate,
+    lastUpdatedDateTime: lastUpdatedDateTime,
+    transactionTypeCode: initPayload ? initPayload.transactionType : null,
+    invoice: {
+        invoiceId: invoiceId
+    }
+};
+
+// Set payload
+mc.setPayloadJSON(payload);]]></script>
+    <property name="HTTP_METHOD" value="PATCH" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/api/entries/quotes/', $ctx:quoteId)"/>
+    <call>
+        <endpoint key="general-ledger-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-general-ledger-sapi" expression="$body"/>
+    </log>
+    <property name="generalLedgerResponse" expression="json-eval($)" scope="axis2"/>
+    <filter source="get-property('axis2','HTTP_SC')" regex="200|201">
+        <then>
+        </then>
+        <else>
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "update general ledger has failed",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </else>
+    </filter>
+    <payloadFactory media-type="json">
+        <format>
+            {
+            "eventTypeCode": "PREMIUM_PAID"
+            }
+        </format>
+        <args/>
+    </payloadFactory>
+    <property name="HTTP_METHOD" value="PATCH" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/update/audit-trail/', $ctx:quoteId)"/>
+    <call>
+        <endpoint key="audit-trail-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-audit-sapi" expression="$body"/>
+    </log>
+    <property name="auditResponse" expression="json-eval($)" scope="axis2"/>
+    <filter source="get-property('axis2','HTTP_SC')" regex="200|201">
+        <then>
+        </then>
+        <else>
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "update Audit-Trial has failed",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </else>
+    </filter>
+    <property name="HTTP_METHOD" value="GET" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" value="/treasury/transactions/TRS-000981"/>
+    <call>
+        <endpoint key="treasury-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-treasury-sapi" expression="$body"/>
+    </log>
+    <filter source="get-property('axis2','HTTP_SC')" regex="200|201">
+        <then>
+            <property name="treasuryResponse" expression="json-eval($)"/>
+            <log level="custom">
+                <property name="TREASURY_RESPONSE" expression="get-property('treasuryResponse')"/>
+            </log>
+            <script language="js"><![CDATA[var inputData = JSON.parse(mc.getProperty("inputData"));
+var treasuryData = JSON.parse(mc.getProperty("treasuryResponse")); // <-- FIX
+
+// Extract values safely
+var premium = Number(inputData.totalPremium);
+var oldTotal = Number(treasuryData.cashPosition.totalBalance.amountValue);
+var currency = treasuryData.cashPosition.totalBalance.currencyCode;
+
+var now = new Date().toISOString();
+
+var result = {
+    cashPosition: {
+        previousBalance: {
+            amountValue: oldTotal,
+            currencyCode: currency
+        },
+        totalBalance: {
+            amountValue: oldTotal + premium,
+            currencyCode: currency
+        }
+    },
+    lastUpdatedDateTime: now,
+    paymentDateTime: now
+};
+
+mc.setPayloadJSON(result);]]></script>
+        </then>
+        <else>
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "Get Treasury Error while Retrieval",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </else>
+    </filter>
+    <property name="HTTP_METHOD" value="PATCH" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" value="/treasury/transactions/policy"/>
+    <call>
+        <endpoint key="treasury-sapi-restEndpoint"/>
+    </call>
+    <log level="full">
+        <property name="after-treasury-sapi" expression="$body"/>
+    </log>
+    <filter source="get-property('axis2','HTTP_SC')" regex="200|201">
+        <then>
+            <property name="treasuryResponse" expression="json-eval($)"/>
+            <log level="custom">
+                <property name="TREASURY_RESPONSE" expression="get-property('treasuryResponse')"/>
+            </log>
+        </then>
+        <else>
+            <filter source="json-eval($.error.description)" regex=".+">
+                <then>
+                    <property name="errMsg" expression="json-eval($.error.description)"/>
+                </then>
+                <else>
+                    <property name="errMsg" value="Payment business error"/>
+                </else>
+            </filter>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorDomain": "Update Treasury has Error",
+                    "errorMessage": "$2",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error.errorType.identifier"/>
+                    <arg evaluator="xml" expression="$ctx:errMsg"/>
+                    <arg evaluator="xml" expression="$ctx:correlationId"/>
+                    <arg evaluator="json" expression="$.timeStamp"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </else>
+    </filter>
+    <script language="js"><![CDATA[
+var response = mc.getProperty("response");
+
+// If stored as STRING → convert to JSON
+if (typeof response === "string") {
+    response = JSON.parse(response);
+}
+
+// Set as payload
+mc.setPayloadJSON(response);
+]]></script>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="billing-payment-papi"/>
+        <with-param name="sequence" value="billing-payment-papi-create-billing-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended billing-payment-papi-create-billing-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

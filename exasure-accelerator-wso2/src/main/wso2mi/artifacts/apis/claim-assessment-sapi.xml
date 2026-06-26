@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/claim-assessment-sapi" name="claim-assessment-sapi" xmlns="http://ws.apache.org/ns/synapse">
+
+    <!-- GET Loss Items -->
+    <resource methods="GET" uri-template="/api/claim/{claimId}/loss-items">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-getLossItemsByClaimId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    <!-- POST Loss Items -->
+    <resource methods="POST" uri-template="/api/claim/{claimId}/loss-items">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-postLossItemsByClaimId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    <!-- PATCH Loss Items -->
+    <resource methods="PATCH" uri-template="/api/claim/{claimId}/loss-items">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-updateLossStatusByClaimId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    <!-- GET Inspection Reports -->
+    <resource methods="GET" uri-template="/api/claim/{claimId}/inspection-reports">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-get-inspection-reports-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    <!-- POST Inspection Reports -->
+    <resource methods="POST" uri-template="/api/claim/{claimId}/inspection-reports">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-post-inspection-reports-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-assessment-sapi-fault-sequence"/>
+            <respond/>
+        </faultSequence>
+    </resource>
+
+</api>

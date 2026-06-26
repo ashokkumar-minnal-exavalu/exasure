@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-sapi-getTransaction-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+   <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="transactionId" expression="get-property('uri.var.transactionId')" scope="default"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-sapi-getTransaction-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started claim-payment-sapi-getTransaction-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>      
+<payloadFactory media-type="json">
+    <format>
+        {
+          "transactionDetails.id": "$1"
+        }
+    </format>
+    <args>
+        <arg expression="get-property('transactionId')"/>
+    </args>
+</payloadFactory>
+<mongodb.find configKey="MongoDB-Connection-claim-payment">
+    <collection>claimsPayment</collection>
+    <query>{json-eval($)}</query>
+    <responseVariable>mongodb_find_1</responseVariable>
+    <overwriteBody>true</overwriteBody>
+</mongodb.find>
+<log level="custom">
+    <property name="transactionId" expression="get-property('transactionId')"/>
+    <property name="MongoData" expression="json-eval($.data)"/>
+</log>
+<property name="isFound" expression="json-eval($.found)" scope="default"/>
+<filter xpath="$ctx:isFound = 'true'">
+    <then>
+        <payloadFactory media-type="json">
+            <format>$1</format>
+            <args>
+                <arg evaluator="json" expression="$.data[0]"/>
+            </args>
+        </payloadFactory>
+    </then>
+    <else>
+        <propertyGroup>
+            <property name="ERROR_CODE" value="404"/>
+            <property name="ERROR_MESSAGE"
+                      expression="fn:concat('No transaction record found for this transactionId: ', get-property('transactionId'))"/>
+            <property name="ERROR_DETAIL"
+                      expression="fn:concat('No transaction record found for this transactionId: ', get-property('transactionId'))"/>
+        </propertyGroup>
+        <call-template description="Error Log" target="Common-Log-Template-V1">
+            <with-param name="service" value="claim-payment-sapi"/>
+            <with-param name="sequence" value="claim-payment-sapi-getTransaction-sequence"/>
+            <with-param name="level" value="INFO"/>
+            <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+            <with-param name="status" value="ERROR"/>
+        </call-template>
+        <sequence key="claim-payment-sapi-fault-sequence"/>
+    </else>
+</filter>
+	<property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-sapi-getTransaction-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="END claim-payment-sapi-getTransaction-sequence"/>
+        <with-param name="status" value="Ended"/>
+    </call-template>
+</sequence>

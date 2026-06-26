@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-fraudCheck-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="claim-papi-fraudCheck-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating claim-papi-fraudCheck-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="claimId" expression="get-property('uri.var.claimId')" scope="default" type="STRING"/>
+    <property name="initPayload" expression="json-eval($)" scope="default" type="STRING"/>
+    <sequence key="claim-papi-getClaimByClaimIdSequence"/>
+    <property name="policyId" scope="default" type="STRING" expression="json-eval($[0].policy.policyNumber)"/>
+    <property name="claimResponse" expression="json-eval($)" scope="default"/>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>ClaimResponse</message>
+        <property name="LOG" expression="json-eval($)"/>
+    </log><!-- Log the extracted value -->
+    <log level="custom">
+        <property name="ExtractedPolicyId" expression="get-property('policyId')"/>
+    </log>
+    <scatter-gather parallel-execution="true" target="Body" result-content-type="JSON">
+        <aggregation expression="${payload}"/>
+        <sequence>
+            <propertyGroup>
+                <property name="ContentType" value="application/x-www-form-urlencoded" scope="axis2"/>
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/', $ctx:policyId)"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="policy-admin-papi-resrEndpoint"/>
+            </call>
+            <log category="INFO" logMessageID="false" logFullPayload="true">
+                <message>afterAdmin</message>
+                <property name="policy" expression="json-eval($)"/>
+            </log>
+            <payloadFactory media-type="json">
+                <format>{"policyResponse": $1}</format>
+                <args>
+                    <arg evaluator="json" expression="$"/>
+                </args>
+            </payloadFactory>
+        </sequence>
+        <sequence>
+            <propertyGroup>
+                <property name="ContentType" value="application/x-www-form-urlencoded" scope="axis2"/>
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/claim/', $ctx:claimId, '/loss-items')"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="claim-assessment-sapi-restEndpoint"/>
+            </call>
+            <log category="INFO" logMessageID="false" logFullPayload="true">
+                <message>afterAdmin</message>
+                <property name="Assessment" expression="json-eval($)"/>
+            </log>
+            <script language="js"><![CDATA[
+var payload = mc.getPayloadJSON();
+
+if (payload && payload.data && Array.isArray(payload.data)) {
+
+    var cleanedArray = payload.data.map(function(item) {
+
+        if (item && item._id) {
+            delete item._id;
+        }
+
+        return item;
+    });
+
+    mc.setPayloadJSON(cleanedArray);
+
+} else {
+    mc.setPayloadJSON([]);
+}
+]]></script>
+            <payloadFactory media-type="json">
+                <format>{"lossitemsResponse": $1}</format>
+                <args>
+                    <arg evaluator="json" expression="$"/>
+                </args>
+            </payloadFactory>
+        </sequence>
+    </scatter-gather>
+    <script language="js"><![CDATA[var payload = mc.getPayloadJSON();
+
+// ---- Extract from array payload ----
+var lossitemsResponse = null;
+var policyResponse = null;
+
+for (var i = 0; i < payload.length; i++) {
+    if (payload[i].lossitemsResponse) {
+        lossitemsResponse = payload[i].lossitemsResponse;
+    }
+    if (payload[i].policyResponse) {
+        policyResponse = payload[i].policyResponse;
+    }
+}
+
+// ---- Extract first loss item ----
+var lossItem = (lossitemsResponse && lossitemsResponse.length > 0)
+    ? lossitemsResponse[0]
+    : null;
+
+// ---- Parse claimResponse ----
+var claimResponseStr = mc.getProperty("claimResponse");
+var claimResponse = null;
+
+if (claimResponseStr) {
+    try {
+        claimResponse = JSON.parse(claimResponseStr);
+    } catch (e) {
+        print("ERROR parsing claimResponse: " + e);
+    }
+}
+
+// ---- Handle claimResponse array ----
+var claim = null;
+if (claimResponse && Array.isArray(claimResponse) && claimResponse.length > 0) {
+    claim = claimResponse[0];
+}
+
+// ---- Date helper ----
+function toDate(d) {
+    return d ? new Date(d) : null;
+}
+
+// ---- Policy tenure ----
+var policyTenureMonths = 0;
+
+if (policyResponse && policyResponse.termStartDate && policyResponse.termEndDate) {
+    var startDate = toDate(policyResponse.termStartDate);
+    var endDate = toDate(policyResponse.termEndDate);
+
+    policyTenureMonths = (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+                         (endDate.getMonth() - startDate.getMonth());
+}
+
+// ---- Accident count ----
+var accidentCount = 0;
+
+if (claim &&
+    claim.policy &&
+    claim.policy.driverDetails) {
+
+    accidentCount = claim.policy.driverDetails.accidentCount || 0;
+}
+
+// ---- Loss days ----
+var lossDays = 0;
+
+if (lossItem && lossItem.reportedDateTime && lossItem.incidentDateTime) {
+    var reportedDate = toDate(lossItem.reportedDateTime);
+    var incidentDate = toDate(lossItem.incidentDateTime);
+
+    lossDays = Math.floor((reportedDate - incidentDate) / (1000 * 60 * 60 * 24));
+}
+
+// ---- Police report ----
+var policeReport = false;
+
+if (claim &&
+    claim.accidentDetails &&
+    claim.accidentDetails.policeReport) {
+
+    policeReport = claim.accidentDetails.policeReport.reportRegistered === true;
+}
+
+// ---- Risk indicators ----
+var riskIndicatorsSet = [];
+
+if (lossDays > 3) {
+    riskIndicatorsSet.push("LATE_REPORTED_CLAIM");
+}
+
+if (accidentCount > 3) {
+    riskIndicatorsSet.push("MULTIPLE_PRIOR_CLAIMS");
+}
+
+if (policeReport !== true) {
+    riskIndicatorsSet.push("NO_POLICE_REPORT");
+}
+
+// ---- Fraud score ----
+var score = 0;
+
+// Policy tenure score
+if (policyTenureMonths < 6) {
+    score += 25;
+} else if (policyTenureMonths <= 12) {
+    score += 15;
+} else {
+    score += 5;
+}
+
+// Prior claims score
+if (accidentCount >= 5) {
+    score += 30;
+} else if (accidentCount >= 3) {
+    score += 20;
+} else if (accidentCount >= 1) {
+    score += 10;
+}
+
+// Risk indicator score
+for (var j = 0; j < riskIndicatorsSet.length; j++) {
+    switch (riskIndicatorsSet[j]) {
+        case "LATE_REPORTED_CLAIM":
+            score += 15;
+            break;
+        case "MULTIPLE_PRIOR_CLAIMS":
+            score += 20;
+            break;
+        case "NO_POLICE_REPORT":
+            score += 10;
+            break;
+    }
+}
+
+// ---- Cap at 100 ----
+var fraudScoreDetail = score > 100 ? 100 : score;
+
+// ---- Risk level ----
+var fraudRiskLevel = "LOW";
+
+if (fraudScoreDetail >= 71) {
+    fraudRiskLevel = "HIGH";
+} else if (fraudScoreDetail >= 31) {
+    fraudRiskLevel = "MEDIUM";
+}
+
+// ---- Recommendation ----
+var recommendation = "PROCEED";
+
+if (fraudRiskLevel === "MEDIUM") {
+    recommendation = "HOLD / MANUAL_REVIEW";
+} else if (fraudRiskLevel === "HIGH") {
+    recommendation = "REFER_TO_SIU";
+}
+
+// ---- Final Output ----
+var result = {
+    fraudScore: fraudScoreDetail,
+    riskReasons: riskIndicatorsSet.map(function(indicator) {
+        switch (indicator) {
+            case "LATE_REPORTED_CLAIM":
+                return "Late claim reporting";
+            case "MULTIPLE_PRIOR_CLAIMS":
+                return "Multiple prior claims in short duration";
+            case "NO_POLICE_REPORT":
+                return "No police report for accident";
+            default:
+                return "Other risk indicator";
+        }
+    }),
+    riskLevel: fraudRiskLevel,
+    recommendation: recommendation,
+    fraudRequestedDate: claim
+        ? claim.claimReportedDate
+        : null
+};
+
+// ---- Set final payload ----
+mc.setPayloadJSON(result);]]></script>
+    <propertyGroup description="properties">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/claim/', $ctx:claimId, '/fraud-check')"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="fraud-evaluation-sapi-restEndpoint"/>
+    </call>
+    <log category="INFO" logMessageID="false" logFullPayload="true">
+        <message>FRAUD</message>
+        <property name="FRAUD" value="json-eval($)"/>
+    </log>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="claim-papi-fraudCheck-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending claim-papi-fraudCheck-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

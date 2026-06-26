@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+    <api context="/claim-payment-papi/api/" name="claim-payment-papi" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="POST" uri-template="/payment">
+        <inSequence>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>start</message>
+            </log>
+            <sequence key="claim-payment-papi-initiate-payment-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-payment-papi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+</api>

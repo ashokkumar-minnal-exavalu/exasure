@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-initiate-payment-sequence" onError="claim-payment-papi-common-fault-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <!-- Generate correlation UUID (equivalent of uuid() / X-Correlation-ID logic) -->
+    <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    <property name="LatencyMs" value="0"/>
+    <property name="uuid" expression="fn:concat('urn:uuid:', get-property('MessageID'))" scope="default" type="STRING"/>
+    <!-- Capture original request payload -->
+    <property name="initPayload" expression="json-eval($)" scope="default"/>
+    <!-- Build startValues property bag -->
+    <property name="apiStartTime" scope="default" type="STRING" expression="get-property('SYSTEM_DATE')"/>
+    <property name="requestID" expression="get-property('transport', 'X-Correlation-ID')" scope="default" type="STRING"/>
+    <!-- Fallback to correlation ID when header is absent -->
+    <filter source="get-property('requestID')" regex="^$">
+      <then>
+            <property name="requestID" expression="get-property('MessageID')" scope="default"/>
+        </then>
+    </filter>
+    <property name="xDebugMode" expression="get-property('transport', 'x-debugmode')" scope="default" type="STRING"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-initiate-payment-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating claim-payment-papi-initiate-payment-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <!-- Call fetch-allClaimsPaymentData first -->
+    <sequence key="claim-payment-papi-fetch-all-claims-payment-data-sequence"/>
+    <property name="claimListPayload" scope="default" type="STRING" expression="${payload}"/>
+    <filter xpath="${isArray(payload)}">
+        <then>
+        </then>
+        <else>
+            <property name="ERROR_MESSAGE" scope="default" type="STRING" expression="${payload.errors[0].errorMessage}"/>
+            <property name="ERROR_DETAIL" scope="default" type="STRING" expression="${payload.errors[0].errorDescription}"/>
+            <property name="ERROR_CODE" scope="default" type="STRING" expression="${payload.errors[0].errorCode}"/>
+            <sequence key="claim-payment-papi-common-fault-sequence"/>
+        </else>
+    </filter><!-- ── Choice / Filter: payload != [] ───────────────────── -->
+    <filter xpath="${length(payload) &gt; 0}">
+      <then>
+            <foreach collection="${payload}" parallel-execution="true" update-original="true" continue-without-aggregation="false">
+                <sequence>
+                    <log category="INFO" logMessageID="false" logFullPayload="false">
+                        <message>${payload}</message>
+                    </log><!-- Capture current element as initialpayload -->
+                    <property name="initialpayload" expression="json-eval($)" scope="default"/>
+                    <!-- Extract claimId -->
+                    <property name="claimId" scope="default" type="STRING" expression="${payload.claims.claimId}"/>
+
+              <log level="custom">
+                        <property name="claimId" expression="get-property('claimId')"/>
+                    </log>
+                    <payloadFactory media-type="json" template-type="default">
+                        <format>{
+                            "claimAmount": ${payload.payment.claimAmount},
+                            "currency": "${payload.payment.currency}",
+                            "country": "${payload.payment.country}",
+                            "bankDetails": {
+                            "accountHolderName": "${payload.bankDetails.accountHolderName}",
+                            "bankName": "${payload.bankDetails.bankName}",
+                            "routingNumber": "021000021",
+                            "accountNumber": "000123456789",
+                            "accountType": "checking",
+                            "accountHolderType": "individual"
+                            }
+                            }</format>
+                    </payloadFactory>
+                    <log category="INFO" logMessageID="false" logFullPayload="false">
+                        <message>${payload}</message>
+                    </log><!-- Build the bank/payment payload consumed by generate-token and payout -->
+                    <!-- ── Sequential sub-flow calls ─────────────── -->
+                    <sequence key="claim-payment-papi-generate-token-sequence"/>
+                    <sequence key="claim-payment-papi-initiate-payout-sequence"/>
+                    <sequence key="claim-payment-papi-transaction-details-sequence"/>
+                    <sequence key="claim-payment-papi-store-transaction-details-sequence"/>
+                    <!-- ── Async: Send email notification ─────────── -->
+                    <!-- WSO2 MI: use Clone + Drop to achieve fire-and-forget -->
+                <clone continueParent="true">
+                    <target>
+                        <sequence>
+                                <sequence key="claim-payment-papi-send-payment-email-sequence"/>
+                            </sequence>
+                        </target>
+                    </clone>
+                    <!-- ── Async: response-status-log ─────────────── -->
+                <clone continueParent="true">
+                    <target>
+                        <sequence>
+                                    <sequence key="claim-payment-papi-response-log-sequence"/>
+                            </sequence>
+                        </target>
+                    </clone>
+                    <!-- ── Sequential post-store calls ───────────── -->
+                        <sequence key="claim-payment-papi-payable-sequence"/>
+                        <sequence key="claim-payment-papi-audit-sequence"/>
+                        <sequence key="claim-payment-papi-general-ledger-sequence"/>
+                        <sequence key="claim-payment-papi-settle-treasury-sequence"/>
+                </sequence>
+            </foreach><!--
+          Iterate over each claim element.
+          WSO2 MI Iterate mediator splits the JSON array; each child
+          invocation runs the target sequence with one element as payload.
+        -->
+        </then>
+    </filter>
+    
+    <clone continueParent="true">
+                    <target>
+                        <sequence>
+                <sequence key="claim-payment-papi-response-log-sequence"/>
+            </sequence>
+        </target>
+    </clone>
+    <!-- Final async log outside loop -->
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-initiate-payment-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending claim-payment-papi-initiate-payment-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

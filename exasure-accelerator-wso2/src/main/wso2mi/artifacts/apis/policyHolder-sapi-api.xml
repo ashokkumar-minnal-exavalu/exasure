@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/policyHolder-sapi" name="policyHolder-sapi-api" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="get-specific-policyHolder-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/policyHolder">
+        <inSequence>
+            <sequence key="post-specific-policyHolder-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="patch-specific-policyHolder-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/policyholder/{policyHolderId}/policies">
+        <inSequence>
+            <sequence key="get-policies-against-policyHolder-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/all/policyHolder">
+        <inSequence>
+            <sequence key="get-all-policyHolder-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>    
+</api>

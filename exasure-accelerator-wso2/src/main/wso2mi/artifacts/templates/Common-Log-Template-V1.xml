@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<template name="Common-Log-Template-V1" xmlns="http://ws.apache.org/ns/synapse">
+    <parameter isMandatory="true" name="service"/>
+    <parameter isMandatory="true" name="sequence"/>
+    <parameter isMandatory="true" name="level"/>
+    <parameter isMandatory="true" name="message"/>
+    <parameter isMandatory="true" name="status"/>
+    <sequence>
+        <variable name="logLevel" expression="${toUpper(params.functionParams.level)}" type="STRING"/>
+        <property name="LOG_JSON"
+            scope="default"
+            type="STRING"
+            expression="fn:concat('{',
+            '&quot;@timestamp&quot;:&quot;', get-property('SYSTEM_DATE'), '&quot;,',
+            '&quot;service.name&quot;:&quot;', $func:service, '&quot;,',
+            '&quot;log.level&quot;:&quot;', $func:level, '&quot;,',
+            '&quot;event.action&quot;:&quot;', $func:status, '&quot;,',
+            '&quot;message&quot;:&quot;', $func:message, '&quot;,',
+            '&quot;transaction.id&quot;:&quot;', get-property('CorrelationID'), '&quot;,',
+            '&quot;wso2.sequence&quot;:&quot;', $func:sequence, '&quot;,',
+            '&quot;event.duration.ms&quot;:&quot;', get-property('LatencyMs'), '&quot;',
+            '}')"/>
+        <switch source="${vars.logLevel}">
+            <case regex="ERROR">
+                <log category="ERROR" logMessageID="false" logFullPayload="false" description="ERROR_LOG">
+                    <message>${properties.synapse.LOG_JSON}</message>
+                </log>
+            </case>
+            <case regex="DEBUG">
+                <log category="DEBUG" logMessageID="false" logFullPayload="false" description="DEBUG_LOG">
+                    <message>${properties.synapse.LOG_JSON}</message>
+                </log>
+            </case>
+            <case regex="WARN">
+                <log category="WARN" logMessageID="false" logFullPayload="false" description="WARN_LOG">
+                    <message>${properties.synapse.LOG_JSON}</message>
+                </log>
+            </case>
+            <default>
+                <log category="INFO" logMessageID="false" logFullPayload="false" description="INFO_LOG">
+                    <message>${properties.synapse.LOG_JSON}</message>
+                </log>
+            </default>
+        </switch>
+    </sequence>
+</template>

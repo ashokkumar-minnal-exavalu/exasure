@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/b2c-xapi" name="b2c-xapi-api" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="get-specific-policyHolder-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/all/policyHolder">
+        <inSequence>
+            <sequence key="get-all-policyHolder-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/policyHolder">
+        <inSequence>
+            <sequence key="post-specific-policyHolder-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="patch-specific-policyHolder-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policyAPI/{policyId}">
+        <inSequence>
+            <sequence key="get-specific-policy-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/policy">
+        <inSequence>
+            <sequence key="post-specific-policy-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/policy/{policyId}/issuance">
+        <inSequence>
+            <sequence key="patch-issue-specific-policy-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/policy/{policyId}/cancellation">
+        <inSequence>
+            <sequence key="patch-cancel-specific-policy-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/all/policy">
+        <inSequence>
+            <sequence key="get-all-policy-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/policyholder/{policyHolderId}/policies">
+        <inSequence>
+            <sequence key="get-policies-against-policyHolder-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/quote/{quoteId}">
+        <inSequence>
+            <sequence key="b2c-xapi-getQuoteByQuoteId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" description="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/quote/{quoteId}/accept">
+        <inSequence>
+            <sequence key="b2c-xapi-patch-acceptQuote-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" description="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/quote/{quoteId}/discard">
+        <inSequence>
+            <sequence key="b2c-xapi-patch-discardQuote-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" description="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/quote">
+        <inSequence>
+            <sequence key="b2c-xapi-createQuote-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/api/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="b2c-xapi-getQuoteByPolicyHolderId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/signup">
+        <inSequence>
+            <sequence key="post-user-signup-xapi-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/login">
+        <inSequence>
+            <sequence key="post-user-login-xapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim">
+        <inSequence>
+            <sequence key="b2c-xapi-getAll-Claims-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/claim/{claimId}/reject">
+        <inSequence>
+            <sequence key="b2c-xapi-rejectClaimByClaimId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim">
+        <inSequence>
+            <sequence key="b2c-xapi-createClaim-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim/{claimId}">
+        <inSequence>
+            <sequence key="b2c-xapi-getClaim-by-claimId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim/{claimId}/validate">
+        <inSequence>
+        <sequence key="b2c-xapi-validateClaimByClaimId-sequence" /></inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/claim/{claimId}/accept">
+        <inSequence>
+            <sequence key="b2c-xapi-acceptClaimByClaimId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="b2c-xapi-getClaimByPolicyHolderId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>              
+</api>

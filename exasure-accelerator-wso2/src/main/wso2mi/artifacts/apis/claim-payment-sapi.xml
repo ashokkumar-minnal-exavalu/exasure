@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/claim-payment-sapi/api" name="claim-payment-sapi" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="POST" uri-template="/payment/store/transaction">
+        <inSequence>
+            <sequence key="claim-payment-sapi-storeTransaction-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/payment/retrieve/claimsPaymentDetails">
+        <inSequence>
+            <sequence key="claim-payment-sapi-getAllClaimsPayments-sequence"/>
+            <respond/>
+        </inSequence>
+    </resource>
+
+   
+    <resource methods="GET" uri-template="/payment/retrieve/{transactionId}">
+        <inSequence>
+            <sequence key="claim-payment-sapi-getTransaction-sequence"/>
+            <respond/>
+        </inSequence>
+    </resource>
+    <resource methods="GET" uri-template="/payment/retrive/{paymentId}">
+        <inSequence>
+            <sequence key="claim-payment-sapi-paymentRetrive-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+        <resource methods="POST" uri-template="/payment/payout">
+        <inSequence>
+            <sequence key="claim-payment-sapi-create-payout-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+        <resource methods="POST" uri-template="/payment/token">
+        <inSequence>
+            <sequence key="claim-payment-sapi-create-token-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

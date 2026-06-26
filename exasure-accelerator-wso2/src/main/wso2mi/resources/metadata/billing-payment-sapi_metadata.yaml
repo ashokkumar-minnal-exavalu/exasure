@@ -1,0 +1,9 @@
+---
+key: "billing-payment-sapi-1.0.0"
+name: "billing-payment-sapi"
+displayName: "billing-payment-sapi"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/billing-payment-sapi/api/billing-payment"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

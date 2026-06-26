@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/policy-document-sapi" name="policy-document-sapi" version="1.0.0" version-type="context" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/api/document/{documentId}">
+        <inSequence>
+            <sequence key="policy-sapi-getdocument-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/policies/{policyNumber}/documents">
+        <inSequence>
+            <sequence key="policy-sapi-createpolicy-document-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/quotes/documents">
+        <inSequence>
+            <sequence key="policy-sapi-createquote-document-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-policies-against-policyHolder-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyHolderId" expression="get-property('uri.var.policyHolderId')"/>
+        <property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;parties.partyIdentifier&quot;:&quot;', $ctx:policyHolderId, '&quot;}')"/>
+    </propertyGroup>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="get-policies-against-policyHolder-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started get-policies-against-policyHolder-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <mongodb.find configKey="MongoDB-Connection-PolicyHolder-API">
+        <collection>policies</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Response returned from Mongo+++++++</message>
+    </log>
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <script language="js"><![CDATA[
+                var payload = mc.getPayloadJSON();
+
+                if (payload && payload.found && payload.data) {
+                    for (var i = 0; i < payload.data.length; i++) {
+                        delete payload.data[i]._id;
+                    }
+                    mc.setPayloadJSON(payload.data);
+                } else {
+                    mc.setPayloadJSON([]);
+                }
+            ]]></script>
+        </then>
+        <else>
+        <propertyGroup description="error details">
+            <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+            <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="No policy details found against provided policy Holder" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="404"/>
+            </propertyGroup>
+        <call-template description="Error Log" target="Common-Log-Template-V1">
+            <with-param name="service" value="policyHolder-api"/>
+            <with-param name="sequence" value="get-policies-against-policyHolder-sapi-sequence"/>
+            <with-param name="level" value="INFO"/>
+            <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/> 
+            <with-param name="status" value="ERROR"/>
+            </call-template>        
+            <sequence key="policyHolder-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="get-policies-against-policyHolder-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended get-policies-against-policyHolder-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

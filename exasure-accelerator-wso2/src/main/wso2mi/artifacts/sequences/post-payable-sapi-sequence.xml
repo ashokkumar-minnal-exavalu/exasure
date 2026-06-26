@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="post-payable-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimId" expression="json-eval($.claim.claimId)" scope="default"/>      
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="payable-api"/>
+        <with-param name="sequence" value="post-payable-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started post-payable-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <!-- Check if claimId is NOT empty -->
+    <filter xpath="$ctx:claimId != ''">
+        <then>
+            <!-- Insert into MongoDB -->
+            <mongodb.insertOne configKey="WSO2-Accelerator-DB">
+                <collection>payables</collection>
+                <document>{json-eval($)}</document>
+                <responseVariable>mongodb_insertOne_1</responseVariable>
+                <overwriteBody>false</overwriteBody>
+            </mongodb.insertOne>
+
+            <!-- Prepare Response -->
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                      "payableIdentifier": "$1",
+                      "payableStatusCode": "$2",
+                      "createdDateTime": "$3",
+                      "message": "Payable record created Successfully"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.payableIdentifier"/>
+                    <arg evaluator="json" expression="$.payableStatusCode"/>
+                    <arg expression="get-property('SYSTEM_DATE','yyyy-MM-dd')"/>
+                </args>
+            </payloadFactory>
+
+            <respond/>
+
+        </then>
+
+        <else>
+            <propertyGroup description="error details">
+                <property value="400" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Bad Request" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="ClaimId cannot be empty" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="400"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="payable-api"/>
+                <with-param name="sequence" value="post-payable-sapi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="payable-sapi-fault-sequence"/>            
+        </else>
+    </filter>    
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="payable-api"/>
+        <with-param name="sequence" value="post-payable-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended post-payable-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>   
+</sequence>

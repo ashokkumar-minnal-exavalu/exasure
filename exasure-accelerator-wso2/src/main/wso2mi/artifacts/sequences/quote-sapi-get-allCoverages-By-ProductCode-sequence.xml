@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="quote-sapi-get-allCoverages-By-ProductCode-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <property name="productCode" expression="get-property('uri.var.productId')" scope="default" type="STRING"/>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="quote-sapi"/>
+        <with-param name="sequence" value="quote-sapi-get-allCoverages-By-ProductCode-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Initiating quote-sapi-get-allCoverages-By-ProductCode-sequence for productCode- ', $ctx:uri.var.productCode)}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="updateQuery" expression="fn:concat('{&quot;productCode&quot;:&quot;', $ctx:productCode, '&quot;}')"/>
+    <mongodb.find configKey="WSO2-MongoDB-Connection">
+        <collection>allCoverages</collection>
+        <query>{$ctx:updateQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_findData</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+    <filter source="json-eval($.found)" regex="true">
+        <then>
+            <!-- SUCCESS SCENARIO -->
+            <enrich>
+                <source type="custom" xpath="json-eval($.data)"/>
+                <target type="body" action="replace"/>
+            </enrich>
+            <script language="js"><![CDATA[var payload = mc.getPayloadJSON();
+
+payload.forEach(function(item){
+    delete item._id;
+});
+
+mc.setPayloadJSON(payload);]]></script>
+        </then>
+        <else>
+            <!-- ERROR SCENARIO -->
+            <property name="messageType" value="application/json" scope="axis2"/>
+            <property name="HTTP_SC" value="404" scope="axis2"/>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "404",
+                    "errorMessage": "Data not found",
+                    "errorDetails": "The data requested is not found in database.",
+                    "transactionId": "$1",
+                    "timeStamp": "$2"
+                    }
+                </format>
+                <args>
+                    <arg expression="get-property('correlation_id')"/>
+                    <arg expression="get-property('SYSTEM_DATE')"/>
+                </args>
+            </payloadFactory>
+        </else>
+    </filter>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="quote-sapi"/>
+        <with-param name="sequence" value="quote-sapi-get-allCoverages-By-ProductCode-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Ending quote-sapi-get-allCoverages-By-ProductCode-sequence for productCode- ', $ctx:uri.var.productCode)}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

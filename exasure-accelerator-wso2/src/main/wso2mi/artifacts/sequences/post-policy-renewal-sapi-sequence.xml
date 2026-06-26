@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="post-policy-renewal-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-api"/>
+        <with-param name="sequence" value="post-policy-renewal-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started post-policy-renewal-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Payload to be inserted for renewal+++++</message>
+    </log>
+    <mongodb.insertOne configKey="Renewal-SAPI-Connection">
+        <collection>renewal</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>mongodb_insertOne_1</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.insertOne>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="post-policy-renewal-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended post-policy-renewal-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

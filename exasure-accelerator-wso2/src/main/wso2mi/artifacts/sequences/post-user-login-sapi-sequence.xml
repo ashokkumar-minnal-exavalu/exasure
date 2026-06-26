@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="post-user-login-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="Req-Payload" scope="default" type="STRING" expression="json-eval($)"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="user-api"/>
+        <with-param name="sequence" value="post-user-login-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started post-user-login-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>   
+    <mongodb.findOne configKey="user-Mongo-Connection">
+        <collection>users</collection>
+        <query>{json-eval($)}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>mongodb_findOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>  
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <property name="role" expression="json-eval($.data.role)" scope="default"/>
+            <property name="userResponse" expression="json-eval($.data)" scope="default"/>                 
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "policyHolderDetails.email": "$1"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$ctx:Req-Payload.email"/>
+                </args>
+            </payloadFactory>
+            <mongodb.findOne configKey="user-Mongo-Connection">
+                <collection>policyHolders</collection>
+                <query>{json-eval($)}</query>
+                <projection></projection>
+                <collation></collation>
+                <responseVariable>mongodb_findOne_1</responseVariable>
+                <overwriteBody>true</overwriteBody>
+            </mongodb.findOne>      
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "isSuccessfull": true,
+                    "policyHolderID": "$1",
+                    "firstName": "$2",
+                    "lastName": "$3",
+                    "role": "$4"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="json-eval($.data.policyHolderId)"/>
+                    <arg evaluator="json" expression="$ctx:userResponse.firstName"/>
+                    <arg evaluator="json" expression="$ctx:userResponse.lastName"/>
+                    <arg evaluator="xml" expression="get-property('role')"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "isSuccessfull": false,
+                    "errorCode": "400",
+                    "errorMessage": "Username or password is incorrect",
+                    "errorDetails": "Username or password is incorrect",
+                    "transactionId": "$1",
+                    "timeStamp": "$2"
+                    }
+                </format>
+                <args>
+                    <arg expression="get-property('MessageID')"/>
+                    <arg expression="get-property('SYSTEM_TIME')"/>
+                </args>
+            </payloadFactory>
+            <property name="HTTP_SC" value="400" scope="axis2"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="user-api"/>
+        <with-param name="sequence" value="post-user-login-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended post-user-login-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>     
+</sequence>

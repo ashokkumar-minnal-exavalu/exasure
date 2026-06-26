@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-assessment-sapi-post-inspection-reports-sequence"
+          trace="disable"
+          xmlns="http://ws.apache.org/ns/synapse">
+
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="ContentType" value="application/json" scope="axis2"/>
+
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="LatencyMs" value="0"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')"/>
+    </propertyGroup>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assessment-sapi"/>
+        <with-param name="sequence" value="post-inspection-reports"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Start post_inspectionReports_subflow"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <script language="js"><![CDATA[
+        var payload = mc.getPayloadJSON();
+
+        var now = new Date();
+        function pad(n){ return n < 10 ? "0" + n : "" + n; }
+
+        var ts = now.getFullYear() +
+                 pad(now.getMonth() + 1) +
+                 pad(now.getDate()) +
+                 pad(now.getHours()) +
+                 pad(now.getMinutes()) +
+                 now.getMilliseconds();
+
+        var doc = {};
+        if (payload != null) {
+            for (var k in payload) {
+                doc[k] = payload[k];
+            }
+        }
+
+        doc.claimId = String(mc.getProperty("claimId"));
+        doc.inspectionId = "INS-" + ts;
+
+        var recommendation = "";
+        var remarks = "";
+
+        if (doc.inspectionOutcome != null) {
+            if (doc.inspectionOutcome.recommendation != null) {
+                recommendation = String(doc.inspectionOutcome.recommendation);
+            }
+            if (doc.inspectionOutcome.remarks != null) {
+                remarks = String(doc.inspectionOutcome.remarks);
+            }
+        }
+
+        mc.setProperty("inspectionId", doc.inspectionId);
+        mc.setProperty("inspectionDocStr", JSON.stringify(doc));
+        mc.setProperty("recommendation", recommendation);
+        mc.setProperty("remarks", remarks);
+
+        mc.setPayloadJSON(doc);
+    ]]></script>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assessment-sapi"/>
+        <with-param name="sequence" value="post-inspection-reports"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="DB_INSERT_START inspectionReports"/>
+        <with-param name="status" value="PROCESSING"/>
+    </call-template>
+
+    <mongodb.insertOne configKey="MongoDB-Connection-claimassessment">
+        <collection>inspectionReports</collection>
+        <document>{$ctx:inspectionDocStr}</document>
+        <responseVariable>mongoInsertResp</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.insertOne>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assessment-sapi"/>
+        <with-param name="sequence" value="post-inspection-reports"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="DB_INSERT_SUCCESS inspectionReports"/>
+        <with-param name="status" value="PROCESSING"/>
+    </call-template>
+
+    <payloadFactory media-type="json">
+        <format>
+            {
+              "claimId": "$1",
+              "inspectionId": "$2",
+              "inspectionStatus": "COMPLETED",
+              "inspectionOutcome": {
+                "recommendation": "$3",
+                "remarks": "$4"
+              }
+            }
+        </format>
+        <args>
+            <arg expression="$ctx:claimId"/>
+            <arg expression="$ctx:inspectionId"/>
+            <arg expression="$ctx:recommendation"/>
+            <arg expression="$ctx:remarks"/>
+        </args>
+    </payloadFactory>
+
+    <property name="HTTP_SC" value="201" scope="axis2"/>
+
+    <property name="LatencyMs"
+              expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assessment-sapi"/>
+        <with-param name="sequence" value="post-inspection-reports"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="End post_inspectionReports_subflow"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+    <respond/>
+
+</sequence>

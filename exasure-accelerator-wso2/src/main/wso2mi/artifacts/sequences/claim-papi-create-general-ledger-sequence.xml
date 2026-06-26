@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-create-general-ledger-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi"/>
+        <with-param name="sequence" value="claim-papi-create-general-ledger-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Start claim-papi-create-general-ledger-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="StartTime" expression="get-property('SYSTEM_TIME')" scope="default" type="STRING"/>
+    <property name="LatencyMs" value="0" scope="default" type="STRING"/>
+
+    <!-- Step 1: Fetch Policy Details -->
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+	<property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/',$ctx:policyNumber)"/>
+    <!-- Step 2: Get Claim Details -->
+    <call>
+		<endpoint key="policy-admin-papi-quote-restEndpoint"/>
+	</call>
+
+    <!-- Store policyPayload -->
+    <property name="policyPayload" expression="json-eval($)" scope="default" type="STRING"/>
+
+    <!-- Log policy response -->
+    <log level="full">
+        <property name="policyPayload" expression="json-eval($)"/>
+    </log>
+
+    <!-- Step 2: Transform Payload (DataWeave → JS Script) -->
+    <script language="js"><![CDATA[
+        var policyPayload = JSON.parse(mc.getProperty("policyPayload"));
+        var inspection = JSON.parse(mc.getProperty("inspection"));
+        var payableResponse = JSON.parse(mc.getProperty("payableResponse"));
+        var auditResponse = JSON.parse(mc.getProperty("auditResponse"));
+
+        var now = new Date();
+
+        // Format date yyyy-MM-dd
+        function formatDate(d) {
+            var month = '' + (d.getMonth() + 1);
+            var day = '' + d.getDate();
+            var year = d.getFullYear();
+
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+
+            return [year, month, day].join('-');
+        }
+
+        var payload = {
+            reference: {
+                referenceTypeCode: "CLAIM_APPLICATION"
+            },
+            quoteId: policyPayload.quote.quoteId,
+            claimId: mc.getProperty("claimId"),
+            postingDate: formatDate(now),
+            ledgerEntryIdentifier: "GLE" + now.getTime(),
+            payableIdentifier: payableResponse.payableIdentifier,
+            auditIdentifier: auditResponse.auditIdentifier,
+            ledgerStatusCode: "POSTED",
+            ledgerEntry: [{
+                accountCode: "CLAIM_EXPENSE",
+                debitAmount: {
+                    amountValue: inspection.assessment.netPayableAmount,
+                    currencyCode: "USD"
+                }
+            }]
+        };
+
+        mc.setPayloadJSON(payload);
+    ]]></script>
+
+    <!-- Step 3: Call General Ledger API -->
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+	<property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/api/entries"/>
+    <call>
+		<endpoint key="general-ledger-sapi-restEndpoint"/>
+	</call>
+
+    <!-- Step 4: Log Response -->
+    <log level="full">
+        <property name="GLResponse" expression="json-eval($)"/>
+    </log>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')" scope="default" type="STRING"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi"/>
+        <with-param name="sequence" value="claim-papi-create-general-ledger-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Completed claim-papi-create-general-ledger-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

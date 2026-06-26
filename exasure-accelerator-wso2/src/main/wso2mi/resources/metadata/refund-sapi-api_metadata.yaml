@@ -1,0 +1,10 @@
+---
+key: "refund-sapi-api-1.0.0"
+name : "refund-sapi-api"
+displayName : "refund-sapi-api"
+description: "refund-sapi-api"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/refund-sapi"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

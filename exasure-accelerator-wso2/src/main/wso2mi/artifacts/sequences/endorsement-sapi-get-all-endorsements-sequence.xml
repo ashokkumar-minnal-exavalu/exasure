@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="endorsement-sapi-get-all-endorsements-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyId" expression="get-property('uri.var.policyId')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-get-all-endorsements-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Start edendorsement-sapi-get-all-endorsements-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:policyId, '&quot;}')"/>
+    <mongodb.find configKey="MongoDB-connection-endorsement">
+        <collection>endorsement</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+
+
+
+
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <payloadFactory description="Response poayload" media-type="json">
+                <format>
+                    $1
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="Data not found for the given policyHolderId" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="endorsement-sapi"/>
+                <with-param name="sequence" value="endorsement-sapi-get-all-endorsements-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="endorsement-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-get-all-endorsements-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended endorsement-sapi-get-all-endorsements-sequence"/>
+        <with-param name="status" value="End"/>
+    </call-template>
+</sequence>

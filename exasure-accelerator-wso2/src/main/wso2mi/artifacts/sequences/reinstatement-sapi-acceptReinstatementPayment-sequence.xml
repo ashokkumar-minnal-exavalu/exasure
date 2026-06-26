@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="reinstatement-sapi-acceptReinstatementPayment-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="reinstatement-sapi"/>
+        <with-param name="sequence" value="reinstatement-sapi-acceptReinstatementPayment-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started reinstatement-sapi-acceptReinstatementPayment-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="policyId" expression="get-property('uri.var.policyId')"/>
+    <property name="updateQuery" expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:policyId, '&quot;}')"/>
+    <payloadFactory media-type="json">
+        <format>
+            {
+            "$set": {
+            "policyStatusCode": "$1",
+            "reinstatements.0.policyStatusCode": "ACTIVE"
+            }
+            }
+        </format>
+        <args>
+            <arg evaluator="json" expression="$.policyStatusCode"/>
+        </args>
+    </payloadFactory>
+    <property name="updatePayload" expression="json-eval($)" scope="default" type="STRING"/>
+    <mongodb.updateOne configKey="WSO2-Accelerator-DB">
+        <collection>policies</collection>
+        <query>{$ctx:updateQuery}</query>
+        <update>{$ctx:updatePayload}</update>
+        <upsert>false</upsert>
+        <responseVariable>mongoUpdateResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.updateOne>
+    <filter xpath="${payload.modifiedCount > 0}">
+		<then>
+			<!-- SUCCESS SCENARIO -->
+            <script language="js"><![CDATA[var date = new Date();
+
+function pad(n){ return n < 10 ? "0" + n : n; }
+
+var ts = date.getFullYear().toString() +
+         pad(date.getMonth() + 1) +
+         pad(date.getDate()) +
+         pad(date.getHours()) +
+         pad(date.getSeconds()) +
+         date.getMilliseconds();
+
+var policyId = mc.getProperty("policyId");
+
+var response = {
+    transactionId: "TRNX-" + ts,
+    isSuccessful: "true",
+    message: "Reinstatement payment successful",
+    policyNumber: policyId
+};
+
+mc.setPayloadJSON(response);]]></script>
+			<log level="full">
+				<property name="STEP" value="LOG 5"/>
+            </log>
+        </then>
+		<else>
+            <!-- ERROR SCENARIO -->
+			<property name="messageType" value="application/json" scope="axis2"/>
+			<property name="HTTP_SC" value="404" scope="axis2"/>
+			<payloadFactory media-type="json">
+				<format>
+                    {
+                    "errorCode": "404",
+                    "errorMessage": "Data not found",
+                    "errorDetails": "The data requested is not found in database.",
+                    "transactionId": "$1",
+                    "timeStamp": "$2"
+                    }
+                </format>
+				<args>
+					<arg expression="get-property('correlation_id')"/>
+					<arg expression="get-property('SYSTEM_DATE')"/>
+                </args>
+            </payloadFactory>
+			<log level="full">
+				<property name="STEP" value="LOG 6"/>
+            </log>
+        </else>
+	</filter>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="reinstatement-sapi"/>
+        <with-param name="sequence" value="reinstatement-sapi-reinstatement-sapi-acceptReinstatementPayment-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended reinstatement-sapi-reinstatement-sapi-acceptReinstatementPayment-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/general-ledger-sapi/api" name="general-ledger-sapi" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="POST" uri-template="/entries">
+        <inSequence>
+            <sequence key="general-ledger-sapi-create-GL-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/entries/quotes/{quoteId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-get-GL-by-quoteId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/entries/quotes/{quoteId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-update-GL-by-quoteId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/entries/claims/{claimId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-get-GL-by-claimId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/entries/claims/{claimId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-update-GL-by-claimId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

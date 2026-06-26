@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-payable-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="claim-payment-sapi"/>
+    <with-param name="sequence" value="claim-payment-papi-payable-sequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="{${&quot;Initiating claim-payment-papi-payable-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+    <with-param name="status" value="MIDDLE"/>
+</call-template>
+<script language="js"><![CDATA[
+      var paymentDetails = JSON.parse(mc.getProperty("paymentDetails"));
+      var paymentId      = mc.getProperty("paymentId") || "";
+
+      // Parse datetime from paymentDetails (format: dd-MM-yyyy HH:mm:ss → yyyy-MM-dd)
+      var rawDt   = (paymentDetails.transactionDetails && paymentDetails.transactionDetails.dateTime)
+                      ? paymentDetails.transactionDetails.dateTime : "";
+      var payDate = "";
+      if (rawDt) {
+        var parts = rawDt.split(/[\s\/\-]/);
+        // assume dd-MM-yyyy HH:mm:ss
+        payDate = parts[2] + "-" + parts[1] + "-" + parts[0];
+      }
+
+      var body = {
+        "paymentDate":      payDate,
+        "payableStatusCode":"CLOSED",
+        "transaction": {
+          "transactionId":       paymentId,
+          "transactionTypeCode": "CLAIM"
+        },
+        "invoice": {
+          "invoiceId": ""
+        }
+      };
+      mc.setPayloadJSON(body);
+    ]]></script>
+
+    <property name="HTTP_METHOD"
+              value="PATCH"
+              scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/payables/',get-property('claimId'))"/>
+
+    <call>
+        <endpoint key="payable-sapi-restEndpoint"/>
+    </call>
+
+    <property name="receivableResponse" expression="json-eval($)" scope="default"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-payable-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Ending claim-payment-papi-payable-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+        <with-param name="status" value="MIDDLE"/>
+    </call-template>
+</sequence>

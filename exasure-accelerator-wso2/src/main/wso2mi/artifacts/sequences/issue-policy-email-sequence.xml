@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence xmlns="http://ws.apache.org/ns/synapse"
+          name="issue-policy-email-sequence">
+
+    <!-- Build HTML Email -->
+    <!-- <payloadFactory media-type="xml">
+        <format>
+            <html>
+                <body>
+                    <h2>Policy Issued - $1</h2>
+                    <p>Dear User,</p>
+                    <p>Your policy has been successfully issued.</p>
+                    <p><b>Policy Number:</b> $1</p>
+                    <p><b>Quote ID:</b> $2</p>
+                    <p><b>Start Date:</b> $3</p>
+                    <p><b>End Date:</b> $4</p>
+                </body>
+            </html>
+        </format>
+        <args>
+            <arg expression="json-eval($.policyNumber)"/>
+            <arg expression="json-eval($.quote.quoteId)"/>
+            <arg expression="json-eval($.termStartDate)"/>
+            <arg expression="json-eval($.termEndDate)"/>
+        </args>
+    </payloadFactory> -->
+
+    <!-- Send Email -->
+    <property name="OUT_ONLY" value="true"/>
+    <send>
+        <endpoint>
+            <address uri="mailto:exavaluinsuranceaccelarator@gmail.com"/>
+        </endpoint>
+    </send>
+
+
+
+            <!-- <email.send configKey="Email-SMTPS-Connection">
+                <from>exavaluinsuranceaccelarator@gmail.com</from>
+                <personalName></personalName>
+                <to>rishi.puri@exavalu.com</to>
+                <cc></cc>
+                <bcc></bcc>
+                <replyTo></replyTo>
+                <subject>Policy Issued</subject>
+                <content>Hello User,Your Policy is issued.</content>
+                <contentType>text/html</contentType>
+                <encoding>UTF-8</encoding>
+                <attachments></attachments>
+                <inlineImages>[]</inlineImages>
+                <contentTransferEncoding>Base64</contentTransferEncoding>
+                <responseVariable>email_send_1</responseVariable>
+                <overwriteBody>false</overwriteBody>
+            </email.send> -->
+
+
+
+
+
+
+
+</sequence>

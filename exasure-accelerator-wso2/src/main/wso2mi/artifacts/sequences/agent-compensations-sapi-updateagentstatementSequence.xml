@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="agent-compensations-sapi-updateagentstatementSequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="agent-compensation-sapi-api"/>
+        <with-param name="sequence" value="agent-compensations-sapi-updateagentstatementSequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started agent-compensations-sapi-updateagentstatementSequence"/>
+        <with-param name="status" value="START"/>
+</call-template>
+
+<script language="js"><![CDATA[
+var p = mc.getPayloadJSON();
+
+if (!p.summary) {
+   p.summary = {};
+}
+
+if (p.summary.totalPaidAmount == null)
+   p.summary.totalPaidAmount = 0;
+
+if (p.summary.netPayableAmount == null)
+   p.summary.netPayableAmount = 0;
+
+if (!p.statementStatusCode)
+   p.statementStatusCode = "CLOSED";
+
+var updateDoc = {
+   "$set": {
+      "summary.totalPaidAmount": p.summary.totalPaidAmount,
+      "summary.netPayableAmount": p.summary.netPayableAmount,
+      "statementStatusCode": p.statementStatusCode
+   }
+};
+
+mc.setProperty("mongoUpdateDoc", JSON.stringify(updateDoc));
+]]></script>
+<payloadFactory media-type="json">
+    <format>
+        {"quoteId": "$1"}
+    </format>
+    <args>
+        <arg expression="get-property('quoteId')" evaluator="xml"/>
+    </args>
+</payloadFactory>
+<property name="mongoQuery" type="STRING" expression="json-eval($)"/>
+<log><property name="mongoQuery" type="STRING" expression="json-eval($)"/></log>
+    <mongodb.updateOne configKey="MongoDB-Connection-AgentCompensation-sapi-API">
+        <collection>agentStatements</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <update>{$ctx:mongoUpdateDoc}</update>
+        <upsert>False</upsert>
+        <collation></collation>
+        <arrayFilters></arrayFilters>
+        <responseVariable>mongodb_updateOne_95</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.updateOne>
+    <filter source="json-eval($)" regex="^$">
+    <then>
+        <propertyGroup description="error details">
+            <property value="500" name="ERROR_CODE" scope="default" type="STRING"/>
+            <property value="Failed to update statement status" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="Failed to update statement status" name="ERROR_DETAIL" scope="default" type="STRING"/>
+        </propertyGroup>
+        <sequence key="agent-compensation-sapi-fault-sequence"/>
+    </then>
+    <else> <log level="custom">
+        <property name="Payload" expression="json-eval($)"/>
+       <property name="intialPayload" expression="get-property('initPayload')"/>
+        </log>
+<property name="statementStatusCode" expression="get-property('statementStatusCode')"/>
+        <payloadFactory media-type="json">
+            <format>
+            {
+               "quoteId":"$1",
+               "statementStatusCode":"$2",
+               "message":"Statement successfully closed for the given quoteId"
+            }
+            </format>
+
+            <args>
+                <arg expression="$ctx:quoteId" evaluator="xml"/>
+                <arg expression="get-property('statementStatusCode')" evaluator="xml"/>
+            </args>
+
+        </payloadFactory></else>
+</filter>
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="agent-compensation-sapi-api"/>
+    <with-param name="sequence" value="agent-compensations-sapi-updateagentstatementSequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="Ended agent-compensations-sapi-updateagentstatementSequence"/>
+    <with-param name="status" value="END"/>
+</call-template>
+
+</sequence>

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="policy-admin-papi-discard-endorsement-sequence"
+          trace="disable"
+          xmlns="http://ws.apache.org/ns/synapse">
+
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-discard-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="policy-admin-papi-discard-endorsement-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <property name="endorsementId"
+              expression="get-property('uri.var.endorsementId')"
+              scope="default"
+              type="STRING"/>
+
+    <property name="HTTP_METHOD" scope="axis2" value="PATCH"/>
+    <property name="REST_URL_POSTFIX"
+              scope="axis2"
+              expression="concat('/endorsements/', $ctx:endorsementId, '/discard')"/>
+
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="ContentType" value="application/json" scope="axis2"/>
+    <property name="Content-Type" value="application/json" scope="transport"/>
+
+    <log level="custom">
+        <property name="CHECKPOINT" value="BEFORE_SAPI_CALL"/>
+        <property name="endorsementId" expression="$ctx:endorsementId"/>
+        <property name="REST_URL_POSTFIX" expression="$axis2:REST_URL_POSTFIX"/>
+    </log>
+
+     <call>
+        <endpoint key="endorsement-sapi-restEndpoint"/>
+    </call>
+
+    <log level="custom">
+        <property name="CHECKPOINT" value="AFTER_SAPI_CALL"/>
+        <property name="endorsementId" expression="$ctx:endorsementId"/>
+        <property name="sapiResponse" expression="json-eval($)"/>
+    </log>
+
+    <filter source="json-eval($.policyNumber)" regex=".+">
+        <then>
+            <payloadFactory media-type="json">
+                <format>{
+  "policyNumber": "$1",
+  "policyVersionIdentifier": "$2",
+  "versionNumber": $3,
+  "transactionTypeCode": "$4",
+  "endorsementStatusCode": "$5",
+  "policyStatusCode": "ACTIVE",
+  "policyEvent": {
+    "eventTypeCode": "$6",
+    "eventDate": "$7"
+  },
+  "message": "Endorsement discarded successfully"
+}</format>
+                <args>
+                    <arg evaluator="json" expression="json-eval($.policyNumber)"/>
+                    <arg evaluator="json" expression="json-eval($.policyVersion.policyVersionIdentifier)"/>
+                    <arg evaluator="json" expression="json-eval($.policyVersion.versionNumber)"/>
+                    <arg evaluator="json" expression="json-eval($.policyVersion.transactionTypeCode)"/>
+                    <arg evaluator="json" expression="json-eval($.endorsementStatusCode)"/>
+                    <arg evaluator="json" expression="json-eval($.policyEvent.eventTypeCode)"/>
+                    <arg evaluator="json" expression="json-eval($.policyEvent.eventDate)"/>
+                </args>
+            </payloadFactory>
+
+            <log level="custom">
+                <property name="CHECKPOINT" value="AFTER_PAPI_TRANSFORMATION"/>
+                <property name="endorsementId" expression="$ctx:endorsementId"/>
+                <property name="transformedResponse" expression="json-eval($)"/>
+            </log>
+        </then>
+        <else>
+            <log level="custom">
+                <property name="CHECKPOINT" value="PASS_THROUGH_RESPONSE"/>
+                <property name="endorsementId" expression="$ctx:endorsementId"/>
+            </log>
+        </else>
+    </filter>
+
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="ContentType" value="application/json" scope="axis2"/>
+    <property name="Content-Type" value="application/json" scope="transport"/>
+
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-discard-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending policy-admin-papi-discard-endorsement-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+    <respond/>
+</sequence>

@@ -1,0 +1,40 @@
+openapi: 3.0.1
+info:
+  title: billing-account-sapi
+  description: API Definition of billing-account-sapi
+  version: 1.0.0
+servers:
+- url: http://localhost:8290/billing-account-sapi
+- url: https://localhost:8253/billing-account-sapi
+paths:
+  /api/billing-accounts:
+    post:
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response
+  /api/billing-accounts/{billingAccountId}:
+    get:
+      parameters:
+      - name: billingAccountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        default:
+          description: Default response

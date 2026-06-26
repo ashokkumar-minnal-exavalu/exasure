@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="create-audit-trail-record-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="audit-trail-api"/>
+        <with-param name="sequence" value="create-audit-trail-record-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started create-audit-trail-record-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <!-- Generate timestamp and enrich payload -->
+    <script language="js"><![CDATA[
+        var payload = mc.getPayloadJSON();
+
+        var now = new Date();
+
+        function pad(n){ return n<10 ? '0'+n : n; }
+
+        var ts =
+            now.getFullYear().toString() +
+            pad(now.getMonth()+1) +
+            pad(now.getDate()) +
+            pad(now.getHours()) +
+            pad(now.getSeconds()) +
+            now.getMilliseconds();
+
+        var eventDate =
+            now.getFullYear() + "-" +
+            pad(now.getMonth()+1) + "-" +
+            pad(now.getDate());
+
+        payload.auditIdentifier = "AUD-" + ts;
+        payload.eventTimestamp = eventDate;
+
+        mc.setPayloadJSON(payload);
+    ]]></script>
+    <property name="eventTypeCode" expression="json-eval($.eventTypeCode)" scope="default"/>
+
+    <!-- Choice mediator -->
+    <filter xpath="$ctx:eventTypeCode = 'CLAIM_INVOICE_CREATED'">
+
+        <then>
+            <mongodb.insertOne configKey="WSO2-Accelerator-DB">
+                <collection>auditClaims</collection>
+                <document>{json-eval($)}</document>
+                <responseVariable>mongodb_insertOne_1</responseVariable>
+                <overwriteBody>false</overwriteBody>
+            </mongodb.insertOne>
+
+            <!-- Response payload -->
+            <payloadFactory media-type="json">
+                <format>
+                {
+                    "auditIdentifier": "$1",
+                    "eventTypeCode": "$2",
+                    "recordedTimestamp": "$3",
+                    "message": "Audit claim record created Successfully"
+                }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.auditIdentifier"/>
+                    <arg evaluator="json" expression="$.eventTypeCode"/>
+                    <arg evaluator="json" expression="$.eventTimestamp"/>
+                </args>
+            </payloadFactory>
+        </then>
+
+        <else>
+
+            <!-- Check if eventTypeCode is empty -->
+            <filter xpath="not($ctx:eventTypeCode)">
+
+                <then>
+                    <property name="ERROR_MESSAGE" value="Event code did not match"/>
+                    <property name="HTTP_SC" value="400" scope="axis2"/>
+                    <respond/>
+                </then>
+
+                <else>
+                    <mongodb.insertOne configKey="WSO2-Accelerator-DB">
+                        <collection>auditTrail</collection>
+                        <document>{json-eval($)}</document>
+                        <responseVariable>mongodb_insertOne_1</responseVariable>
+                        <overwriteBody>false</overwriteBody>
+                    </mongodb.insertOne>
+                    <!-- Response payload -->
+                    <payloadFactory media-type="json">
+                        <format>
+                        {
+                            "auditIdentifier": "$1",
+                            "eventTypeCode": "$2",
+                            "recordedTimestamp": "$3",
+                            "message": "Audit trail record created Successfully"
+                        }
+                        </format>
+                        <args>
+                            <arg evaluator="json" expression="$.auditIdentifier"/>
+                            <arg evaluator="json" expression="$.eventTypeCode"/>
+                            <arg evaluator="json" expression="$.eventTimestamp"/>
+                        </args>
+                    </payloadFactory>
+                </else>
+
+            </filter>
+
+        </else>
+
+    </filter>    
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="audit-trail-api"/>
+        <with-param name="sequence" value="create-audit-trail-record-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended create-audit-trail-record-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>    
+</sequence>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/reinstatement-sapi/api" name="reinstatement-sapi" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/policies/reinstatement/{reinstatementId}">
+        <inSequence>
+            <sequence key="reinstatement-sapi-getReinstatement-sequence"/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policies/{policyId}/reinstatement/accept">
+        <inSequence>
+            <sequence key="reinstatement-sapi-acceptReinstatement-sequence"/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policies/{policyId}/reinstatement">
+        <inSequence>
+            <sequence key="reinstatement-sapi-createReinstatement-sequence"/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policies/{policyId}/reinstatement/payment">
+        <inSequence>
+            <sequence key="reinstatement-sapi-acceptReinstatementPayment-sequence"/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

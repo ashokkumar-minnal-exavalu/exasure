@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="quote-sapi-create-coverage-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="quote-sapi"/>
+        <with-param name="sequence" value="quote-sapi-create-coverage-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Initiating quote-sapi-create-coverage-sequence for quoteId- ', $ctx:uri.var.quoteId)}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="quoteId" expression="get-property('uri.var.quoteId')" scope="default" type="STRING"/>
+    <script language="js"><![CDATA[
+        // Get existing JSON payload
+        var payload = mc.getPayloadJSON();
+
+        // Get quoteId property
+        var quoteId = mc.getProperty("quoteId");
+
+        // Append quoteId to payload
+        payload.quoteId = quoteId;
+
+        // Set updated payload back
+        mc.setPayloadJSON(payload);
+    ]]></script>
+    <mongodb.insertOne configKey="WSO2-MongoDB-Connection">
+        <collection>policyCoverage</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>mongodb_insertOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+    <payloadFactory media-type="json">
+        <format>
+            {
+            "isSuccessfull": true,
+            "quoteId": "$1",
+            "message": "Coverage added successfully!!"
+            }
+        </format>
+        <args>
+            <arg expression="get-property('quoteId')"/>
+        </args>
+    </payloadFactory>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="quote-sapi"/>
+        <with-param name="sequence" value="quote-sapi-create-coverage-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Ending quote-sapi-create-coverage-sequence for quoteId- ', $ctx:uri.var.quoteId)}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

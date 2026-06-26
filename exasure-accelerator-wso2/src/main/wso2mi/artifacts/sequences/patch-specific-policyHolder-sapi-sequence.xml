@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="patch-specific-policyHolder-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="Input-Payload" scope="default" type="STRING" expression="json-eval($)"/>
+        <property name="policyHolderId" expression="get-property('uri.var.policyHolderId')"/>
+        <property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;policyHolderId&quot;:&quot;', $ctx:policyHolderId, '&quot;}')"/>
+        <property name="mongoUpdate" type="STRING" expression="fn:concat('{&quot;$set&quot;:', $ctx:Input-Payload, '}')"/>
+    </propertyGroup>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="patch-specific-policyHolder-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started patch-specific-policyHolder-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>            
+            <!-- <property name="Input-Payload" scope="default" type="STRING" expression="json-eval($)"/>
+            <property name="policyHolderId" expression="get-property('uri.var.policyHolderId')"/>
+            <property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;policyHolderId&quot;:&quot;', $ctx:policyHolderId, '&quot;}')"/>
+            <log level="custom">
+                <property name="policyHolderId" expression="$ctx:policyHolderId"/>
+                <property name="MongoQuery" expression="$ctx:mongoQuery"/>
+            </log>
+            <property name="mongoUpdate" type="STRING" expression="fn:concat('{&quot;$set&quot;:', $ctx:Input-Payload, '}')"/>
+
+            <log level="custom">
+                <property name="MongoUpdate" expression="$ctx:mongoUpdate"/>
+            </log> -->
+    <mongodb.updateOne configKey="MongoDB-Connection-PolicyHolder-API">
+        <collection>policyHolders</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <update>{$ctx:mongoUpdate}</update>
+        <upsert>False</upsert>
+        <collation></collation>
+        <arrayFilters></arrayFilters>
+        <responseVariable>mongodb_updateOne_22</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.updateOne>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Response from Update Policy Holder+++++++++</message>
+    </log>
+    <log level="custom">
+        <property name="modifiedCount+++++++" expression="json-eval($.modifiedCount)" scope="default"/>
+    </log>     
+    <!-- Read MongoDB response fields -->
+    <property name="modifiedCount"
+            expression="json-eval($.modifiedCount)"
+            scope="default"/>
+
+    <property name="matchedCount"
+            expression="json-eval($.matchedCount)"
+            scope="default"/>
+
+    <!-- Switch based on matchedCount -->
+    <switch source="$ctx:matchedCount">
+
+        <!-- CASE 1 : matchedCount = 1 -->
+        <case regex="1">
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Inside regex 1+++++++++</message>
+            </log>
+            <!-- Nested switch for modifiedCount -->
+            <switch source="$ctx:modifiedCount">
+
+                <!-- modifiedCount = 1 (Updated successfully) -->
+                <case regex="1">
+                    <mongodb.findOne configKey="MongoDB-Connection-PolicyHolder-API">
+                        <collection>policyHolders</collection>
+                        <query>{$ctx:mongoQuery}</query>
+                        <projection></projection>
+                        <collation></collation>
+                        <responseVariable>mongodb_find_1</responseVariable>
+                        <overwriteBody>true</overwriteBody>
+                    </mongodb.findOne>
+
+                    <property name="HTTP_SC"
+                            scope="axis2"
+                            type="STRING"
+                            action="set"
+                            value="200"/>
+                </case>
+
+                <!-- modifiedCount = 0 (Already up to date) -->
+                <case regex="0">
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                                "isSuccessFull": "true",
+                                "message": "Policy holder already up to date. No changes applied."
+                            }
+                        </format>
+                    </payloadFactory>
+
+                    <property name="HTTP_SC"
+                            scope="axis2"
+                            type="STRING"
+                            action="set"
+                            value="200"/>
+                </case>
+
+            </switch>
+        </case>
+
+        <!-- CASE 2 : matchedCount = 0 (No document found) -->
+        <case regex="0">
+            <propertyGroup description="error details">
+                <property name="ERROR_CODE" value="404" scope="default" type="STRING"/>
+                <property name="ERROR_MESSAGE" value="Not_Found" scope="default" type="STRING"/>
+                <property name="ERROR_DETAIL" value="Policy holder does not exist in the system" scope="default" type="STRING"/>
+                <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="404"/>
+            </propertyGroup>
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="policyHolder-api"/>
+                <with-param name="sequence" value="post-specific-policyHolder-sapi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="policyHolder-sapi-fault-sequence"/>
+        </case>
+
+        <!-- DEFAULT -->
+        <default>
+            <propertyGroup>
+                <property name="ERROR_CODE" value="500" scope="default"/>
+                <property name="ERROR_MESSAGE" value="Unexpected MongoDB response"/>
+                <property name="HTTP_SC"
+                        scope="axis2"
+                        action="set"
+                        value="500"/>
+            </propertyGroup>
+
+            <sequence key="policyHolder-sapi-fault-sequence"/>
+        </default>
+
+    </switch>
+
+</sequence>

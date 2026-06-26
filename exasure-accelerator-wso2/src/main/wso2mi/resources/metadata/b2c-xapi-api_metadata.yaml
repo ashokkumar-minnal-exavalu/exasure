@@ -1,0 +1,10 @@
+---
+key: "b2c-xapi-api-1.0.0"
+name : "b2c-xapi-api"
+displayName : "b2c-xapi-api"
+description: "b2c-xapi-api"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/b2c-xapi"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

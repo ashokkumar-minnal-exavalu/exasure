@@ -1,0 +1,104 @@
+openapi: 3.0.1
+info:
+  title: reinstatement-sapi
+  description: API Definition of reinstatement-sapi
+  version: 1.0.0
+servers:
+- url: http://localhost:8290/reinstatement-sapi/api
+- url: https://localhost:8253/reinstatement-sapi/api
+paths:
+  /policies/reinstatement/{reinstatementId}:
+    get:
+      parameters:
+      - name: reinstatementId
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        default:
+          description: Default response
+  /policies/{policyId}/reinstatement/accept:
+    patch:
+      parameters:
+      - name: policyId
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response
+  /policies/{policyId}/reinstatement:
+    post:
+      parameters:
+      - name: policyId
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response
+  /policies/{policyId}/reinstatement/payment:
+    patch:
+      parameters:
+      - name: policyId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response

@@ -1,0 +1,10 @@
+---
+key: "document-sapi-api-1.0.0"
+name : "document-sapi-api"
+displayName : "document-sapi-api"
+description: "document-sapi-api"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/document-sapi"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

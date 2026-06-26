@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-last-processed-ts-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <property name="mongoQuery" value='{ "key": "LAST_PROCESSED_TS" }' type="STRING"/>
+    <mongodb.findOne configKey="MongoDB-Connection-claim-payment">
+        <collection>configCollection</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>mongodb_findOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+
+    <property name="LAST_PROCESSED_TS"
+              expression="json-eval($.data.lastProcessedTs)"
+              scope="default"/>
+
+    <log level="custom">
+        <property name="Retrieved_TS" expression="$ctx:LAST_PROCESSED_TS"/>
+    </log>
+</sequence>

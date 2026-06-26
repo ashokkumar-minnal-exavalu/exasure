@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-all-policies-admin-papi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-api"/>
+        <with-param name="sequence" value="get-all-policies-admin-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started get-all-policies-admin-papi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>    
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/api/all/policy"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="policy-sapi-restEndpoint"/>
+    </call>
+    <property description="statusCode" expression="$axis2:HTTP_SC" name="statusCode" scope="default" type="STRING"/>    
+    <filter xpath="get-property('statusCode')='200'">
+        <then>
+    <!-- ========= Transformation ============== -->
+    <script language="js"><![CDATA[
+
+        var payload = mc.getPayloadJSON().data;
+
+        // -------- removeNull function (EXACT same logic) ----------
+        function removeNull(obj) {
+            if (obj == null) return obj;
+
+            if (Array.isArray(obj)) {
+                return obj.map(removeNull);
+            }
+
+            if (typeof obj === "object") {
+                var newObj = {};
+                for (var key in obj) {
+                    if (obj[key] !== null && obj[key] !== "") {
+                        newObj[key] = obj[key];
+                    }
+                }
+                return newObj;
+            }
+            return obj;
+        }
+
+        function isEmpty(val) {
+            return val == null ||
+                   val === "" ||
+                   (Array.isArray(val) && val.length === 0) ||
+                   (typeof val === "object" && Object.keys(val).length === 0);
+        }
+
+        function mapPolicy(p) {
+
+            var result = {};
+
+            // ---------------- Channel ----------------
+            if (!isEmpty(p.channel)) {
+                result.channel = p.channel;
+            }
+
+            // ---------------- Intermediary ----------------
+            if (!isEmpty(p.intermediary)) {
+                result.intermediary = removeNull({
+                    partyTypeCode: p.intermediary.partyTypeCode,
+                    partyIdentifier: p.intermediary.partyIdentifier
+                });
+            }
+
+            // ---------------- Parties ----------------
+            if (!isEmpty(p.parties)) {
+                result.parties = p.parties.map(function(pt) {
+                    return removeNull({
+                        partyIdentifier: pt.partyIdentifier,
+                        roleTypeCode: pt.roleTypeCode,
+                        partyName: pt.partyName
+                    });
+                });
+            }
+
+            // ---------------- Quote ----------------
+            if (!isEmpty(p.quote)) {
+                result.quote = removeNull({
+                    quoteId: p.quote.quoteId,
+                    quoteIntimationDate: p.quote.quoteIntimationDate,
+                    status: p.quote.status
+                });
+            }
+
+            // ---------------- Policy Details ----------------
+            var policyFields = [
+                "policyNumber","policyAcceptDate","policyissuedDate",
+                "policyCancellationType","policyCancellationComments",
+                "policyCancelledDate","policyStatusCode","productCode",
+                "termStartDate","termEndDate","policyPeriod",
+                "transactionIdentifier","transactionTypeCode",
+                "currentPolicyTermIdentifier","transactionStatusCode",
+                "termStatusCode"
+            ];
+
+            policyFields.forEach(function(field){
+                if (!isEmpty(p[field])) {
+                    result[field] = p[field];
+                }
+            });
+
+            // ---------------- Policy Refund Date ----------------
+            // policyrefundDate arrives as { "$numberLong": "..." } — preserve as-is
+            if (p.policyrefundDate != null && typeof p.policyrefundDate === "object" &&
+                    p.policyrefundDate["$numberLong"] != null) {
+                result.policyrefundDate = { "$numberLong": p.policyrefundDate["$numberLong"] };
+            } else if (!isEmpty(p.policyrefundDate)) {
+                result.policyrefundDate = p.policyrefundDate;
+            }
+
+            // ---------------- Drivers ----------------
+            if (!isEmpty(p.driverDetails)) {
+                result.driverDetails = p.driverDetails.map(function(d){
+                    return removeNull({
+                        driverIdentifier: d.driverIdentifier,
+                        driverName: d.driverName,
+                        driverLicenseNumber: d.driverLicenseNumber,
+                        driverLicenseJurisdictionCode: d.driverLicenseJurisdictionCode,
+                        driverLicenseJurisdictionZipCode: d.driverLicenseJurisdictionZipCode,
+                        drivingExperienceYearCount: d.drivingExperienceYearCount,
+                        yearsLicensedCount: d.yearsLicensedCount,
+                        accidentCount: d.accidentCount,
+                        violationCount: d.violationCount
+                    });
+                });
+            }
+
+            // ---------------- Underwriting Questions ----------------
+            if (!isEmpty(p.underWritingQuestions)) {
+                result.underWritingQuestions = p.underWritingQuestions.map(function(u){
+                    return removeNull({
+                        atfaultClaimsPast5Years: u.atfaultClaimsPast5Years,
+                        insuranceFraudConviction: u.insuranceFraudConviction,
+                        "10YearFelonyConviction": u["10YearFelonyConviction"],
+                        runThirdPartyReports: u.runThirdPartyReports
+                    });
+                });
+            }
+
+            // ---------------- Insurable Objects ----------------
+            if (!isEmpty(p.insurableObjects)) {
+                result.insurableObjects = p.insurableObjects.map(function(io){
+                    return removeNull({
+                        insurableObjectIdentifier: io.insurableObjectIdentifier,
+                        insurableObjectTypeCode: io.insurableObjectTypeCode,
+                        vehicle: removeNull(io.vehicle),
+                        coverages: removeNull(io.coverages)
+                    });
+                });
+            }
+
+            // ---------------- Coverages ----------------
+            if (!isEmpty(p.coverages)) {
+                result.coverages = p.coverages.map(function(c){
+                    return removeNull({
+                        insurableObjectIdentifier: c.insurableObjectIdentifier,
+                        coverageIdentifier: c.coverageIdentifier,
+                        coverageName: c.coverageName,
+                        limit: removeNull(c.limit),
+                        deductible: removeNull(c.deductible)
+                    });
+                });
+            }
+
+            // ---------------- Pricing ----------------
+            if (!isEmpty(p.pricing)) {
+                result.pricing = removeNull({
+                    totalPremium: p.pricing.totalPremium,
+                    grossFees: p.pricing.grossFees,
+                    amounts: p.pricing.amounts ? p.pricing.amounts.map(removeNull) : null
+                });
+            }
+
+            // ---------------- Documents ----------------
+            if (!isEmpty(p.documents)) {
+                result.documents = p.documents.map(function(d, i){
+                    return removeNull({
+                        documentId: i + 1,
+                        binaryData: d.binaryData,
+                        documentTypeCode: d.documentTypeCode,
+                        displayName: d.displayName,
+                        type: d.type,
+                        generatedDate: d.generatedDate
+                    });
+                });
+            }
+
+            // ---------------- Billing ----------------
+            if (!isEmpty(p.billing)) {
+                result.billing = removeNull({
+                    invoices: p.billing.invoices ? p.billing.invoices.map(removeNull) : null
+                });
+            }
+
+            // ---------------- Renewals ----------------
+            if (!isEmpty(p.renewals)) {
+                result.renewals = p.renewals.map(function(r){
+                    return removeNull({
+                        renewalId: r.renewalId,
+                        policyNumber: r.policyNumber,
+                        policyTermIdentifier: r.policyTermIdentifier,
+                        termSequenceNumber: r.termSequenceNumber,
+                        transactionTypeCode: r.transactionTypeCode,
+                        transactionIdentifier: r.transactionIdentifier,
+                        transactionStatusCode: r.transactionStatusCode,
+                        termStatusCode: r.termStatusCode,
+                        termStartDate: r.termStartDate,
+                        termEndDate: r.termEndDate,
+                        policyPeriod: r.policyPeriod,
+                        quote: removeNull(r.quote),
+                        insurableObjects: r.insurableObjects ? r.insurableObjects.map(removeNull) : null,
+                        driverDetails: r.driverDetails,
+                        pricing: removeNull(r.pricing),
+                        documents: r.documents,
+                        billing: r.billing
+                    });
+                });
+            }
+
+            // ---------------- Reinstatements ----------------
+            if (!isEmpty(p.reinstatements)) {
+                result.reinstatements = p.reinstatements.map(function(r){
+                    return removeNull({
+                        policyNumber: r.policyNumber,
+                        quoteId: r.quoteId,
+                        reinstatementId: r.reinstatementId,
+                        policyStatusCode: r.policyStatusCode,
+                        policyEvent: removeNull(r.policyEvent),
+                        reinstateTermStartDate: r.reinstateTermStartDate,
+                        reinstateTermEndDate: r.reinstateTermEndDate,
+                        pricing: removeNull(r.pricing)
+                    });
+                });
+            }
+
+            // ---------------- Endorsements (Array OR Object) ----------------
+            // The field can arrive as an empty array [], a populated array, or an object.
+            // Guard against each case so we never call .endorsementId on an array.
+            if (p.endorsements != null) {
+                if (Array.isArray(p.endorsements)) {
+                    // Array form — map each endorsement element
+                    if (p.endorsements.length > 0) {
+                        result.endorsements = p.endorsements.map(function(e){
+                            return removeNull({
+                                endorsementId: e.endorsementId,
+                                endorsementStatusCode: e.endorsementStatusCode,
+                                endorsementName: e.endorsementName,
+                                endorsementCategory: e.endorsementCategory,
+                                endorsementState: e.endorsementState,
+                                transactionDate: e.transactionDate,
+                                policyEvent: removeNull(e.policyEvent),
+                                policyVersion: removeNull(e.policyVersion),
+                                reprice: e.reprice,
+                                conflictHandling: e.conflictHandling,
+                                message: e.message,
+                                pricing: removeNull(e.pricing ? e.pricing.pricing : null),
+                                changes: removeNull({
+                                    drivers: removeNull({
+                                        added: e.changes && e.changes.drivers ? e.changes.drivers.added : null,
+                                        updated: e.changes && e.changes.drivers ? e.changes.drivers.updated : null,
+                                        removed: e.changes && e.changes.drivers ? e.changes.drivers.removed : null
+                                    }),
+                                    insurableObjects: removeNull({
+                                        added: e.changes && e.changes.insurableObjects ? e.changes.insurableObjects.added : null,
+                                        updated: e.changes && e.changes.insurableObjects ? e.changes.insurableObjects.updated : null,
+                                        removed: e.changes && e.changes.insurableObjects ? e.changes.insurableObjects.removed : null
+                                    })
+                                })
+                            });
+                        });
+                    }
+                    // empty array [] — omit the field entirely (isEmpty already guards above,
+                    // but being explicit here: we simply don't set result.endorsements)
+                } else if (typeof p.endorsements === "object" && !isEmpty(p.endorsements)) {
+                    // Legacy object form — keep existing single-object mapping
+                    result.endorsements = removeNull({
+                        endorsementId: p.endorsements.endorsementId,
+                        endorsementStatusCode: p.endorsements.endorsementStatusCode,
+                        endorsementName: p.endorsements.endorsementName,
+                        endorsementCategory: p.endorsements.endorsementCategory,
+                        endorsementState: p.endorsements.endorsementState,
+                        transactionDate: p.endorsements.transactionDate,
+                        policyEvent: removeNull(p.endorsements.policyEvent),
+                        policyVersion: removeNull(p.endorsements.policyVersion),
+                        reprice: p.endorsements.reprice,
+                        conflictHandling: p.endorsements.conflictHandling,
+                        message: p.endorsements.message,
+                        pricing: removeNull(p.endorsements.pricing ? p.endorsements.pricing.pricing : null),
+                        changes: removeNull({
+                            drivers: removeNull({
+                                added: p.endorsements.changes && p.endorsements.changes.drivers ? p.endorsements.changes.drivers.added : null,
+                                updated: p.endorsements.changes && p.endorsements.changes.drivers ? p.endorsements.changes.drivers.updated : null,
+                                removed: p.endorsements.changes && p.endorsements.changes.drivers ? p.endorsements.changes.drivers.removed : null
+                            }),
+                            insurableObjects: removeNull({
+                                added: p.endorsements.changes && p.endorsements.changes.insurableObjects ? p.endorsements.changes.insurableObjects.added : null,
+                                updated: p.endorsements.changes && p.endorsements.changes.insurableObjects ? p.endorsements.changes.insurableObjects.updated : null,
+                                removed: p.endorsements.changes && p.endorsements.changes.insurableObjects ? p.endorsements.changes.insurableObjects.removed : null
+                            })
+                        })
+                    });
+                }
+            }
+
+            return result;
+        }
+
+        // -------- Final Matching Logic (Array vs Object) ----------
+        var finalResult;
+
+        if (Array.isArray(payload)) {
+            finalResult = payload.map(mapPolicy);
+        } else {
+            finalResult = mapPolicy(payload);
+        }
+
+        mc.setPayloadJSON(finalResult);
+
+    ]]></script>
+
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property expression="json-eval($.errors[0].errorCode)" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorMessage)" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorDescription)" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-api"/>
+                <with-param name="sequence" value="get-all-policies-admin-papi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-api"/>
+        <with-param name="sequence" value="get-all-policies-admin-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended get-all-policies-admin-papi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

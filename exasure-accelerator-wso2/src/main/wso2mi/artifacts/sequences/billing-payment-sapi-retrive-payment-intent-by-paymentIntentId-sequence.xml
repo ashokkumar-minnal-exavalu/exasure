@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="billing-payment-sapi-retrive-payment-intent-by-paymentIntentId-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="inputProperties">
+        <property name="intentId" expression="get-property('uri.var.payment-intentId')" scope="default" type="STRING"/>
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/v1/payment_intents/', $ctx:intentId)"/>
+        <property name="messageType" value="application/x-www-form-urlencoded" scope="axis2"/>
+        <property name="ContentType" value="application/x-www-form-urlencoded" scope="axis2"/>
+        <!-- Auth header -->
+    </propertyGroup>
+    <header name="Authorization" scope="transport" value="Bearer sk_test_51SdNv2Qsuyht91JMrQw97hGiY8ZGLbcdm0vdxQyd75JIqv0KX8n6I6oh9iec8Wu5VOO9OD6610K4ulsGAL6fwYSC00tKjpLaSa"/>
+    <call>
+        <endpoint key="stripe-api-restEndpoint"/>
+    </call>
+    <log level="full"/>
+</sequence>

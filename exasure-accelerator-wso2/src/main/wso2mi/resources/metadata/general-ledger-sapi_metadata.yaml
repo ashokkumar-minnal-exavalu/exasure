@@ -1,0 +1,10 @@
+---
+key: "general-ledger-sapi-1.0.0"
+name : "general-ledger-sapi"
+displayName : "general-ledger-sapi"
+description: "general-ledger-sapi"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/general-ledger-sapi/api"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/finance-papi-api" name="finance-papi-api" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/treasury/transactions/{treasuryAccountId}">
+        <inSequence>
+            <property name="treasuryAccountId" expression="get-property('uri.var.treasuryAccountId')" scope="default"/>
+            <sequence key="get-treasurydata-by-treasuryAccountIdSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

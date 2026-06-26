@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/document-sapi" name="document-sapi-api" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/api/document/{documentId}">
+        <inSequence>
+            <sequence key="get-document-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/api/document">
+        <inSequence>
+            <sequence key="create-document-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/api/document/{documentId}">
+        <inSequence>
+            <sequence key="patch-document-sapi-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>        
+</api>

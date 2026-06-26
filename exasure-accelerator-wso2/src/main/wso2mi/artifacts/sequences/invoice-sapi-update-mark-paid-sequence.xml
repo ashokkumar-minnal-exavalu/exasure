@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="invoice-sapi-update-mark-paid-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="state" expression="get-property('uri.var.state')"/>
+        <property name="invoiceId" expression="get-property('uri.var.invoiceId')" scope="default" type="STRING"/>
+        <property name="paymentId" expression="json-eval($.paymentId)" scope="default"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="invoice-sapi"/>
+        <with-param name="sequence" value="invoice-sapi-update-mark-paid-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Initiating invoice-sapi-update-mark-paid-sequence for InvoiceId- ', $ctx:uri.var.invoiceId)}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <payloadFactory media-type="json">
+        <format>
+            {
+            "$set": $1
+            }
+        </format>
+        <args>
+            <arg evaluator="json" expression="$"/>
+        </args>
+    </payloadFactory>
+    <property name="updateQuery" expression="fn:concat('{&quot;invoiceId&quot;:&quot;', $ctx:invoiceId, '&quot;}')"/>
+    <property name="updatePayload" expression="json-eval($)" scope="default" type="STRING"/>
+    <mongodb.updateOne configKey="WSO2-MongoDB-Connection">
+        <collection>Invoice</collection>
+        <query>{$ctx:updateQuery}</query>
+        <update>{$ctx:updatePayload}</update>
+        <upsert>false</upsert>
+        <responseVariable>mongoUpdateResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.updateOne>
+    <filter source="json-eval($.modifiedCount)" regex="1|[2-9][0-9]*">        <!-- ✅ SUCCESS CASE -->
+        <then>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "paymentId": "$1",
+                    "message": "invoice status updated successfully"
+                    }
+                </format>
+                <args>
+                    <arg expression="$ctx:paymentId"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <!-- ❌ FAILURE CASE -->
+        <else>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "404",
+                    "errorMessage": "Data not found",
+                    "errorDetails": "Failed to update paid Status!!! Try againe.",
+                    "transactionId": "$1",
+                    "timeStamp": "$2"
+                    }
+                </format>
+                <args>
+                    <arg expression="$ctx:paymentId"/>
+                    <arg expression="get-property('SYSTEM_TIME')"/>
+                </args>
+            </payloadFactory>
+        </else>
+    </filter>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="invoice-sapi"/>
+        <with-param name="sequence" value="invoice-sapi-update-mark-paid-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Ending invoice-sapi-update-mark-paid-sequence for invoiceId- ', $ctx:uri.var.invoiceId)}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

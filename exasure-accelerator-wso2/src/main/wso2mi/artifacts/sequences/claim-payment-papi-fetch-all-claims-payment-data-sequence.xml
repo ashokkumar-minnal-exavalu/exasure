@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-fetch-all-claims-payment-data-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    <property name="LatencyMs" value="0"/>    
+    <property name="claimsStatus" value="Approved" scope="default" type="STRING"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-fetch-all-claims-payment-data-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Initiating claim-payment-papi-fetch-all-claims-payment-data-sequence for claimStatus: &quot; + properties.synapse.claimsStatus}}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <!-- Set HTTP method and query param -->
+    <property name="HTTP_METHOD" value="GET" scope="axis2"/>
+
+    <!-- Build query string -->
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/payment/retrieve/claimsPaymentDetails?claimsStatus=',get-property('claimsStatus'))"/>
+
+    <call>
+        <endpoint key="claim-payment-sapi-restEndpoint"/>
+    </call>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-fetch-all-claims-payment-data-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Ending claim-payment-papi-fetch-all-claims-payment-data-sequence for claimStatus: &quot; + properties.synapse.claimsStatus}}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+    <clone continueParent="true">
+      <target>
+        <sequence>
+        <sequence key="claim-payment-papi-response-log-sequence"/>
+            </sequence>
+        </target>
+    </clone>
+</sequence>

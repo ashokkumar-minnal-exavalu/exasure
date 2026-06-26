@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/agent-compensation-sapi-api" name="agent-compensation-sapi-api"
+    xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="POST" uri-template="/agent-compensations">
+        <inSequence>
+            <sequence key="agent-compensations-sapi-createcompensationSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agent-compensations">
+        <inSequence>
+            <property name="agentId" expression="$url:agentId"/>
+            <sequence key="agent-compensations-sapi-getcompensationSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/agents/{agentId}/statements/generate">
+        <inSequence>
+            <property name="agentId" expression="get-property('uri.var.agentId')" scope="default"/>
+            
+            <sequence key="agent-compensations-sapi-generateagentstatementSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agents/{quoteId}/agent-statements/quote">
+        <inSequence>
+            <property name="quoteId" expression="get-property('uri.var.quoteId')" scope="default"/>
+            <log><property name="quoteId" expression="get-property('uri.var.quoteId')" scope="default"/></log>
+            <sequence key="agent-compensations-sapi-agentstatementquoteSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agents/{agentId}/statements">
+        <inSequence>
+            <property name="agentId" expression="get-property('uri.var.agentId')" scope="default"/>
+            
+            <sequence key="agent-compensations-sapi-getagentstatementSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agents/fetch-all-agentStatement">
+        <inSequence>
+            <sequence key="agent-compensations-sapi-fetchallagentstatementSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/agents/{quoteId}/agent-statements/status">
+        <inSequence>
+            <property name="quoteId"
+          expression="get-property('uri.var.quoteId')"
+          scope="default"/>
+
+<enrich>
+    <source clone="true" type="body"/>
+    <target property="initPayload" type="property"/>
+</enrich>
+<property name="statementStatusCode" expression="json-eval($.statementStatusCode)"/>
+            <sequence key="agent-compensations-sapi-updateagentstatementSequence"/>
+        <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-coverage-sapi-createCoverage-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <property name="policyNumber" expression="get-property('uri.var.policyNumber')" scope="default" type="STRING"/>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="quote-sapi"/>
+        <with-param name="sequence" value="quote-sapi-create-quote-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started quote-sapi-create-quote-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <script language="js"><![CDATA[// Get current payload as JSON
+var payload = mc.getPayloadJSON();
+
+// Read policyNumber from property
+var policyNumber = mc.getProperty("policyNumber");
+
+// Add policyNumber to payload
+payload.policyNumber = policyNumber;
+
+// Set updated payload back
+mc.setPayloadJSON(payload);]]></script><!-- Transform and enrich payload using script -->
+    <!-- Generate PDF using custom class mediator -->
+    <mongodb.insertOne configKey="WSO2-MongoDB-Connection">
+        <collection>claimCoverages</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>dbResult</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.insertOne>
+    <payloadFactory media-type="json">
+        <format>
+            {
+            "isSuccessful": true,
+            "policyNumber": "$1",
+            "coverageIdentifier": "$2",
+            "claimId": "$3",
+            "coverageStatus": "$4"
+            }
+        </format>
+        <args>
+            <arg evaluator="json" expression="$.policyNumber"/>
+            <arg evaluator="json" expression="$.coverageIdentifier"/>
+            <arg evaluator="json" expression="$.claimId"/>
+            <arg evaluator="json" expression="$.coverageStatus"/>
+        </args>
+    </payloadFactory>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="quote-sapi"/>
+        <with-param name="sequence" value="quote-sapi-create-quote-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended quote-sapi-create-quote-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

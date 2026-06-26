@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/receivables-sapi/api" name="receivables-sapi" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="POST" uri-template="/receivables">
+        <inSequence>
+            <sequence key="receivables-sapi-createReceivables-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/update/receivables/{quoteId}">
+        <inSequence>
+            <sequence key="receivables-sapi-updateReceivablesByQuoteId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/receivables/{quoteId}">
+        <inSequence>
+            <sequence key="receivables-sapi-fetchReceivablesByQuoteId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

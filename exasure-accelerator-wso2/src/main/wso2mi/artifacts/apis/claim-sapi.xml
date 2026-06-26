@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/claim-sapi/api" name="claim-sapi" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/claim/{claimId}">
+        <inSequence>
+            <sequence key="claim-sapi-getClaimByClaimIdSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim">
+        <inSequence>
+            <sequence key="claim-sapi-createClaimSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim">
+        <inSequence>
+            <sequence key="claim-sapi-getAllClaimsSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/claim/{claimId}/reject">
+        <inSequence>
+            <sequence key="claim-sapi-rejectClaimByClaimIdSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/claim/{claimId}/accept">
+        <inSequence>
+            <sequence key="claim-sapi-acceptClaimByClaimIdSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim/settlement">
+        <inSequence>
+            <sequence key="claim-sapi-claimSettlementSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="claim-sapi-getClaimBypolicyHolderIdSequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+</api>

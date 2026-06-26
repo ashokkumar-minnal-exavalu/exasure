@@ -1,0 +1,10 @@
+---
+key: "audit-trail-api-1.0.0"
+name : "audit-trail-api"
+displayName : "audit-trail-api"
+description: "audit-trail-api"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/audit-trail"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

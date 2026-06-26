@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-response-log-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <log category="INFO" level="custom">
+        <property name="event" value="RESPONSE_STATUS_LOG"/>
+        <property name="requestID" expression="get-property('requestID')"/>
+        <property name="httpSC" expression="$axis2:HTTP_SC"/>
+        <property name="timestamp" expression="get-property('SYSTEM_DATE')"/>
+    </log>
+    <filter xpath="get-property('xDebugMode') = 'false'">
+        <then>
+            <!-- Logging disabled branch -->
+            <script language="js"><![CDATA[
+                var body = {
+                    "traceId":   mc.getProperty("requestID") || "",
+                    "message":   "Logging is disabled",
+                    "duration":  (new Date() - new Date(mc.getProperty("apiStartTime"))) + "ms"
+                };
+                mc.setPayloadJSON(body);
+            ]]></script>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>${payload}</message>
+            </log>
+        </then>
+        <else>
+            <!-- Mask payload — attempt masking, fall back gracefully on error -->
+            <script language="js"><![CDATA[
+                try {
+                    var fieldsToMask = mc.getProperty("fieldsToMask") || "";
+                    var initAttrs    = {};
+                    try { initAttrs = JSON.parse(mc.getProperty("initAttributes") || "{}"); } catch(e) {}
+
+                    var initPayload  = mc.getProperty("initPayload") || null;
+                    var method       = initAttrs.method || "";
+
+                    var data = {
+                        "Request": {},
+                        "Response": mc.getPayloadJSON()
+                    };
+
+                    if (initAttrs.queryString && initAttrs.queryString.length > 0) {
+                        data.Request.apiRequestQueryParams = initAttrs.queryString;
+                    }
+                    if (initAttrs.uriParams && Object.keys(initAttrs.uriParams).length > 0) {
+                        data.Request.apiRequestURIParams = initAttrs.uriParams;
+                    }
+                    if (method !== "GET" && initPayload) {
+                        try {
+                            data.Request.apiRequestPayload = (typeof initPayload === "string")
+                                ? JSON.parse(initPayload) : initPayload;
+                        } catch(e) {
+                            data.Request.apiRequestPayload = initPayload;
+                        }
+                    }
+
+                    // Mask specified fields
+                    if (fieldsToMask && fieldsToMask.length > 0) {
+                        var fields = fieldsToMask.split(",").map(function(f){ return f.trim(); });
+                        function maskFields(obj, fields) {
+                            if (typeof obj !== "object" || obj === null) return obj;
+                            for (var key in obj) {
+                                if (!obj.hasOwnProperty(key)) continue;
+                                if (fields.indexOf(key) !== -1) {
+                                    obj[key] = "**********";
+                                } else if (typeof obj[key] === "object") {
+                                    maskFields(obj[key], fields);
+                                }
+                            }
+                            return obj;
+                        }
+                        maskFields(data, fields);
+                    }
+
+                    mc.setProperty("maskedData", JSON.stringify(data));
+
+                } catch(e) {
+                    var fallback = {
+                        "message":       "masking data failed",
+                        "correlationId": mc.getProperty("requestID") || ""
+                    };
+                    mc.setProperty("maskedData", JSON.stringify(fallback));
+                }
+            ]]></script>
+            <!-- Build success log — equivalent of buildSuccessLogging.dwl -->
+            <script language="js"><![CDATA[
+                var httpStatus   = mc.getProperty("httpStatus")   || "";
+                var httpReason   = mc.getProperty("httpReason")   || "";
+                var requestID    = mc.getProperty("requestID")    || "";
+                var apiStartTime = mc.getProperty("apiStartTime") || "";
+                var appName      = mc.getProperty("appName")      || "";
+                var appVersion   = mc.getProperty("appVersion")   || "";
+                var appURL       = mc.getProperty("appURL")       || "";
+                var requestPath  = mc.getProperty("requestPath")  || "";
+                var xDebugMode   = mc.getProperty("xDebugMode")   || "false";
+
+                var initAttrs = {};
+                try { initAttrs = JSON.parse(mc.getProperty("initAttributes") || "{}"); } catch(e) {}
+
+                var vErrorObject = {};
+                try { vErrorObject = JSON.parse(mc.getProperty("vErrorObject") || "{}"); } catch(e) {}
+
+                var orchestrations = [];
+                try { orchestrations = JSON.parse(mc.getProperty("orchestrations") || "[]"); } catch(e) {}
+
+                var maskedData = {};
+                try { maskedData = JSON.parse(mc.getProperty("maskedData") || "{}"); } catch(e) {}
+
+                // responseStatusType equivalent
+                function responseStatusType(s) {
+                    if (s === "299")          return "WARN";
+                    if (s.indexOf("2") === 0) return "INFO";
+                    if (s.indexOf("4") === 0 || s.indexOf("5") === 0) return "ERROR";
+                    return "";
+                }
+
+                var hasHttpReason = httpReason && httpReason.length > 0;
+                var statusType    = hasHttpReason ? responseStatusType(httpStatus) : "SUCCESS";
+                var statusTitle   = hasHttpReason
+                    ? appName + " " + responseStatusType(httpStatus).toLowerCase() + " error response"
+                    : appName + " success response";
+
+                var responseStatus = {
+                    "type":   statusType,
+                    "title":  statusTitle,
+                    "status": httpStatus,
+                    "correlationId":              requestID,
+                    "apiMethodName":              initAttrs.method || "",
+                    "apiURL":                     appURL + requestPath,
+                    "apiVersion":                 appVersion,
+                    "x-ConsumerRequestSentTimeStamp": (initAttrs.headers && initAttrs.headers["x-consumerrequestsenttimestamp"]) || "",
+                    "apiRequestReceivedTimeStamp": apiStartTime,
+                    "apiResponseSentTimeStamp":    new Date().toISOString()
+                };
+
+                // Add error detail if vErrorObject is populated
+                if (vErrorObject && Object.keys(vErrorObject).length > 0) {
+                    responseStatus.detail = {
+                        "errorType":        (vErrorObject.errorType || ""),
+                        "errorDescription": (vErrorObject.description || ""),
+                        "failingComponentName": (vErrorObject.failingComponent || "").replace(/.*\(([^)]*)\)[^(]*$/, "$1"),
+                        "failingComponentPath": (vErrorObject.failingComponent || "")
+                    };
+                    if (vErrorObject.description !== vErrorObject.detailedDescription) {
+                        responseStatus.detail.errorDetailedDescription = vErrorObject.detailedDescription || "";
+                    }
+                    if (vErrorObject.errorMessage && vErrorObject.errorMessage.payload != null) {
+                        responseStatus.detail.errorMessage = vErrorObject.errorMessage.payload;
+                    }
+                }
+
+                // Filter orchestrations unless xDebugMode
+                if (xDebugMode !== "true") {
+                    responseStatus.__orchestrations__ = orchestrations.map(function(item) {
+                        var filtered = {};
+                        for (var k in item) {
+                            if (k !== "providerResponse" && k !== "providerRequestParameter") {
+                                filtered[k] = item[k];
+                            }
+                        }
+                        return filtered;
+                    });
+                } else {
+                    responseStatus.__orchestrations__ = orchestrations;
+                }
+
+                var logBody = {
+                    "ResponseStatus": responseStatus,
+                    "apiResponse":    maskedData.Response || mc.getPayloadJSON() || {}
+                };
+
+                mc.setPayloadJSON(logBody);
+            ]]></script>
+
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>${payload}</message>
+            </log>
+        </else>
+    </filter>
+</sequence>

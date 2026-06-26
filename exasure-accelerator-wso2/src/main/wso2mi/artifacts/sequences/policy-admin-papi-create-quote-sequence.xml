@@ -1,0 +1,621 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="policy-admin-papi-create-quote-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-create-quote-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating policy-admin-papi-create-quote-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="inputData" scope="default" type="STRING" expression="json-eval($)"/>
+    <script language="js"><![CDATA[
+
+var log = mc.getServiceLog();
+var payload = mc.getPayloadJSON();
+
+// =============================
+// 2️⃣ STORE quoteId IN PROPERTY
+// =============================
+var quoteId = "QUT" + new Date().getTime();
+mc.setProperty("quoteID", quoteId);
+
+
+// =====================================================
+// 3️⃣ CALCULATE PREMIUM (DW #1)
+// =====================================================
+
+var policyPeriodMap = {
+    "3 Months": 3,
+    "6 Months": 6,
+    "1 Year": 12,
+    "2 Years": 24
+};
+
+var periodMonths = policyPeriodMap[payload.policyPeriod] || 12;
+
+function calculateEndDate(startDate, months) {
+    var d = new Date(startDate);
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().split("T")[0];
+}
+
+function baseAnnualPremium(vehicle) {
+    return (vehicle.vehicleValue * 0.02)
+        + (vehicle.vehicleModelYear < 2020 ? 2000 : 0)
+        + (vehicle.vehicleTypeCode === "SEDAN" ? 1500 : 2500);
+}
+
+function proratedPremium(annual, months) {
+    return (annual / 12) * months;
+}
+
+var vehiclePremiums = [];
+var totalPremium = 0;
+
+(payload.insurableObjects || [])
+    .filter(function(io) {
+        return io.insurableObjectTypeCode === "VEHICLE";
+    })
+    .forEach(function(item, idx) {
+
+        var base = baseAnnualPremium(item.vehicle);
+        var calc = proratedPremium(base, periodMonths);
+
+        vehiclePremiums.push({
+            vehicleIndex: idx + 1,
+            baseAnnualPremium: base,
+            calculatedPremium: calc
+        });
+
+        totalPremium += calc;
+    });
+
+var premiumResult = {
+    termStartDate: payload.termStartDate,
+    termEndDate: calculateEndDate(payload.termStartDate, periodMonths),
+    policyPeriodMonths: periodMonths,
+    vehiclePremiums: vehiclePremiums,
+    totalPremium: totalPremium
+};
+
+
+// =====================================================
+// 4️⃣ BUILD QUOTE RESULT (DW #2)
+// =====================================================
+
+function addIfNotNull(obj, key, value) {
+    if (value !== null && value !== undefined) {
+        obj[key] = value;
+    }
+}
+
+var quoteResult = {};
+
+// Parties
+quoteResult.parties = (payload.parties || []).map(function(p) {
+
+    var o = {};
+
+    addIfNotNull(o, "partyIdentifier", p.partyIdentifier);
+    addIfNotNull(o, "roleTypeCode", p.roleTypeCode);
+    addIfNotNull(o, "partyName", p.partyName);
+
+    return o;
+});
+
+// Quote Section
+quoteResult.quote = {
+    quoteId: quoteId,
+    quoteIntimationDate: new Date().toISOString().split("T")[0],
+    status: "DRAFT"
+};
+
+// Optional Root Fields
+addIfNotNull(quoteResult, "productCode", payload.productCode);
+addIfNotNull(quoteResult, "termStartDate", payload.termStartDate);
+addIfNotNull(quoteResult, "termEndDate", payload.termEndDate);
+addIfNotNull(quoteResult, "policyPeriod", payload.policyPeriod);
+addIfNotNull(quoteResult, "channel", payload.channel);
+
+// =====================================================
+// NEW ADDITION - INTERMEDIARY
+// =====================================================
+
+if (payload.intermediary) {
+
+    quoteResult.intermediary = {};
+
+    addIfNotNull(
+        quoteResult.intermediary,
+        "partyIdentifier",
+        payload.intermediary.partyIdentifier
+    );
+
+    addIfNotNull(
+        quoteResult.intermediary,
+        "partyTypeCode",
+        payload.intermediary.partyTypeCode
+    );
+
+    addIfNotNull(
+        quoteResult.intermediary,
+        "roleTypeCode",
+        payload.intermediary.roleTypeCode
+    );
+
+    addIfNotNull(
+        quoteResult.intermediary,
+        "commissionEligibleIndicator",
+        payload.intermediary.commissionEligibleIndicator
+    );
+}
+
+// Driver Details
+quoteResult.driverDetails =
+    (payload.driverDetails || []).map(function(d, idx) {
+
+        var o = {
+            driverIdentifier: "DR-" + (idx + 1)
+        };
+
+        Object.keys(d).forEach(function(k) {
+            addIfNotNull(o, k, d[k]);
+        });
+
+        return o;
+    });
+
+// UnderWriting Questions
+quoteResult.underWritingQuestions =
+    (payload.underWritingQuestions || []).map(function(u) {
+
+        var o = {};
+
+        addIfNotNull(
+            o,
+            "atfaultClaimsPast5Years",
+            u.atfaultClaimsPast5Years
+        );
+
+        addIfNotNull(
+            o,
+            "insuranceFraudConviction",
+            u.insuranceFraudConviction
+        );
+
+        addIfNotNull(
+            o,
+            "10YearFelonyConviction",
+            u["10YearFelonyConviction"]
+        );
+
+        addIfNotNull(
+            o,
+            "runThirdPartyReports",
+            u.runThirdPartyReports
+        );
+
+        return o;
+    });
+
+// Insurable Objects + Coverages
+quoteResult.insurableObjects =
+    (payload.insurableObjects || []).map(function(io, idx) {
+
+        var obj = {
+            insurableObjectIdentifier: "VEH-" + (idx + 1),
+            insurableObjectTypeCode: io.insurableObjectTypeCode
+        };
+
+        obj.vehicle = {};
+
+        if (io.vehicle) {
+
+            Object.keys(io.vehicle).forEach(function(k) {
+                addIfNotNull(obj.vehicle, k, io.vehicle[k]);
+            });
+        }
+
+        obj.coverages =
+            (io.coverages || []).map(function(c, cidx) {
+
+                return {
+                    insurableObjectIdentifier: "VEH-" + (idx + 1),
+                    coverageIdentifier:
+                        "COV-VEH-" + (cidx + 1) + (idx + 1),
+                    quoteId: quoteId,
+                    coverageName: c.coverageName,
+                    limits: c.limits,
+                    deductibles: c.deductibles
+                };
+            });
+
+        return obj;
+    });
+
+mc.setProperty(
+    "quoteRequest",
+    JSON.stringify(quoteResult)
+);
+
+// =====================================================
+// 🔹 Extract All Coverages (flatMap Equivalent)
+// =====================================================
+
+var allCoverages = [];
+
+if (quoteResult.insurableObjects &&
+    Array.isArray(quoteResult.insurableObjects)) {
+
+    quoteResult.insurableObjects.forEach(function(io) {
+
+        if (io.coverages &&
+            Array.isArray(io.coverages)) {
+
+            io.coverages.forEach(function(cov) {
+                allCoverages.push(cov);
+            });
+        }
+
+    });
+}
+
+// Store as property (STRING, safe for later usage)
+mc.setProperty(
+    "coverages",
+    JSON.stringify(allCoverages)
+);
+
+// =====================================================
+// 5️⃣ COVERAGES UPDATE + PRICING (DW #3)
+// =====================================================
+
+var updatedQuoteResult =
+    JSON.parse(JSON.stringify(quoteResult));
+
+if (updatedQuoteResult.insurableObjects &&
+    Array.isArray(updatedQuoteResult.insurableObjects)) {
+
+    updatedQuoteResult.insurableObjects =
+        updatedQuoteResult.insurableObjects.map(function(io) {
+
+            var newIO =
+                JSON.parse(JSON.stringify(io));
+
+            if (newIO.coverages &&
+                Array.isArray(newIO.coverages)) {
+
+                var seen = {};
+
+                newIO.coverages =
+                    newIO.coverages
+                    .filter(function(c) {
+                        return c.coverageIdentifier != null;
+                    })
+                    .filter(function(c) {
+
+                        if (seen[c.coverageIdentifier]) {
+                            return false;
+                        }
+
+                        seen[c.coverageIdentifier] = true;
+                        return true;
+                    })
+                    .map(function(c) {
+
+                        return {
+                            coverageIdentifier:
+                                c.coverageIdentifier
+                        };
+                    });
+            }
+
+            return newIO;
+        });
+}
+
+// Add pricing block
+updatedQuoteResult.pricing = {
+    totalPremium: premiumResult.totalPremium,
+    grossFees: 500,
+    amounts: [
+        {
+            amountTypeCode: "PREMIUM",
+            amountValue: premiumResult.totalPremium,
+            currencyCode: "USD"
+        },
+        {
+            amountTypeCode: "FEE",
+            amountValue: 500,
+            currencyCode: "USD"
+        }
+    ]
+};
+
+// ✅ Set as response payload
+mc.setPayloadJSON(updatedQuoteResult);
+
+mc.setProperty(
+    "quoteDataForDocument",
+    JSON.stringify(updatedQuoteResult)
+);
+
+]]></script>
+    <propertyGroup description="inputProperties">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/quotes/documents"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="Document-service-restEndpoint"/>
+    </call>
+    <script language="js"><![CDATA[// ======================================================
+// 1️⃣ Read Property (Stored As String)
+// ======================================================
+
+var quoteDataString = mc.getProperty("quoteDataForDocument");
+
+var quoteData = {};
+
+if (quoteDataString != null && quoteDataString !== "") {
+    quoteData = JSON.parse(quoteDataString);
+}
+
+// ======================================================
+// 2️⃣ Get Current Payload
+// ======================================================
+
+var currentPayload = mc.getPayloadJSON();
+
+// ======================================================
+// 3️⃣ Build Documents Block
+// ======================================================
+
+var documentsBlock = [{
+    binaryData: currentPayload.data,
+    documentTypeCode: currentPayload.fileName,
+    displayName: currentPayload.documentId,
+    type: "PDF",
+    generatedDate: new Date().toISOString().substring(0, 10)
+}];
+
+// ======================================================
+// 4️⃣ Manual Merge (DW ++ Equivalent)
+// ======================================================
+
+var finalResult = {};
+
+// Copy existing quoteData fields
+for (var key in quoteData) {
+    if (quoteData.hasOwnProperty(key)) {
+        finalResult[key] = quoteData[key];
+    }
+}
+
+// Overwrite / Add new fields
+finalResult.documents = documentsBlock;
+finalResult.billing = {
+    invoices: []
+};
+mc.setPayloadJSON(finalResult);
+
+
+]]></script>
+    <property name="HTTP_METHOD" scope="axis2" value="POST"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" value="/quote"/>
+    <call>
+        <endpoint key="quote-sapi-restEndpoint"/>
+    </call>
+    <property name="createQuoteResponse" expression="json-eval($)" scope="default" type="STRING"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" action="remove"/>
+    <property name="HTTP_METHOD" scope="axis2" action="remove"/>
+    <script language="js"><![CDATA[
+var coveragesProp = mc.getProperty("coverages");
+var coveragesArray = [];
+
+if (coveragesProp != null && coveragesProp !== "") {
+    if (Array.isArray(coveragesProp)) {
+        coveragesArray = coveragesProp;
+    } else if (typeof coveragesProp === "string") {
+        coveragesArray = JSON.parse(coveragesProp);
+    }
+}
+
+mc.setPayloadJSON({
+    coverages: coveragesArray
+});
+]]></script>
+    <foreach collection="${$.coverages}" parallel-execution="false" update-original="false" continue-without-aggregation="true">
+        <sequence>
+            <property name="HTTP_METHOD" scope="axis2" value="POST"/>
+            <property name="REST_URL_POSTFIX" scope="axis2" expression="concat('/quote/', $ctx:quoteID, '/coverages')"/>
+            <call>
+                <endpoint key="quote-sapi-restEndpoint"/>
+            </call>
+            <property name="REST_URL_POSTFIX" scope="axis2" action="remove"/>
+            <property name="HTTP_METHOD" scope="axis2" action="remove"/>
+        </sequence>
+    </foreach>
+    <script language="js"><![CDATA[
+var quoteResponse = mc.getProperty("createQuoteResponse");
+
+if (quoteResponse && typeof quoteResponse === "string") {
+    quoteResponse = JSON.parse(quoteResponse);
+}
+
+mc.setPayloadJSON(quoteResponse);
+mc.setProperty("quoteResponse", quoteResponse);
+]]></script>
+    <script language="js"><![CDATA[// Get quoteResponse from message context (adjust property name if needed)
+var quoteResponse = mc.getProperty("quoteResponse");
+
+// Helper function to format date as yyyy-MM-dd
+function formatDate(date) {
+    var yyyy = date.getFullYear();
+    var mm = ("0" + (date.getMonth() + 1)).slice(-2);
+    var dd = ("0" + date.getDate()).slice(-2);
+    return yyyy + "-" + mm + "-" + dd;
+}
+
+// Calculate dueDate = today + 15 days
+var dueDateObj = new Date();
+dueDateObj.setDate(dueDateObj.getDate() + 15);
+var dueDate = formatDate(dueDateObj);
+
+// Construct response
+var result = {
+    receivableTypeCode: "PREMIUM",
+    policy: {
+        quoteId: quoteResponse.quote.quoteId
+    },
+    parties: [
+        {
+            partyIdentifier: quoteResponse.parties[0].partyIdentifier,
+            roleTypeCode: quoteResponse.parties[0].roleTypeCode
+        }
+    ],
+    amounts: [
+        {
+            amountTypeCode: "PREMIUM",
+            amountValue: quoteResponse.pricing.amounts[0].amountValue,
+            currencyCode: "USD"
+        },
+        {
+            amountTypeCode: "FEE",
+            amountValue: quoteResponse.pricing.amounts[1].amountValue,
+            currencyCode: "USD"
+        }
+    ],
+    totalAmount: {
+        amountValue: quoteResponse.pricing.totalPremium,
+        currencyCode: "USD"
+    },
+    dueDate: dueDate
+};
+
+// Set result back to message context
+mc.setPayloadJSON(result);]]></script>
+    <property name="HTTP_METHOD" scope="axis2" value="POST"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" value="/api/receivables"/>
+    <call>
+        <endpoint key="receivables-sapi-restEndpoint"/>
+    </call>
+    <property name="receivableResponse" scope="default" type="STRING" expression="json-eval($)"/>
+    <script language="js"><![CDATA[var quoteResponse = mc.getProperty("quoteResponse");
+
+// Parse if stored as string
+if (quoteResponse && typeof quoteResponse === "string") {
+    quoteResponse = JSON.parse(quoteResponse);
+}
+
+// Generate invoiceId = "INV" + current time in milliseconds
+var invoiceId = "INV" + new Date().getTime();
+
+// Construct response
+var result = {
+    eventTypeCode: "PREMIUM_INVOICE_CREATED",
+    reference: {
+        quoteId: quoteResponse.quote.quoteId,
+        invoiceId: invoiceId
+    },
+    sourceSystem: "ReceivablesAPI"
+};
+
+// Set as payload
+mc.setPayloadJSON(result);]]></script>
+    <property name="HTTP_METHOD" scope="axis2" value="POST"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" value="/audit-trail"/>
+    <call>
+        <endpoint key="audit-trail-sapi-restEndpoint"/>
+    </call>
+    <property name="auditResponse" scope="default" type="STRING" expression="json-eval($)"/>
+    <script language="js"><![CDATA[var quoteResponse = mc.getProperty("quoteResponse");
+var auditResponse = mc.getProperty("auditResponse");
+var receivableResponse = mc.getProperty("receivableResponse");
+
+// Parse if stored as string
+if (quoteResponse && typeof quoteResponse === "string") {
+    quoteResponse = JSON.parse(quoteResponse);
+}
+if (auditResponse && typeof auditResponse === "string") {
+    auditResponse = JSON.parse(auditResponse);
+}
+if (receivableResponse && typeof receivableResponse === "string") {
+    receivableResponse = JSON.parse(receivableResponse);
+}
+
+// Format date yyyy-MM-dd
+function formatDate(date) {
+    var yyyy = date.getFullYear();
+    var mm = ("0" + (date.getMonth() + 1)).slice(-2);
+    var dd = ("0" + date.getDate()).slice(-2);
+    return yyyy + "-" + mm + "-" + dd;
+}
+
+var now = new Date();
+var postingDate = formatDate(now);
+
+// Generate ledgerEntryIdentifier
+var ledgerEntryIdentifier = "GLE" + now.getTime();
+
+// Construct response
+var result = {
+    reference: {
+        referenceTypeCode: "QUOTE_DRAFT"
+    },
+    quoteId: quoteResponse.quote.quoteId,
+    postingDate: postingDate,
+    ledgerEntryIdentifier: ledgerEntryIdentifier,
+    auditIdentifier: auditResponse.auditIdentifier,
+    receivableIdentifier: receivableResponse.receivableIdentifier,
+    ledgerStatusCode: "POSTED",
+    ledgerEntry: [
+        {
+            accountCode: "PREMIUM_RECEIVABLE",
+            creditAmount: {
+                amountValue: quoteResponse.pricing.totalPremium,
+                currencyCode: "USD"
+            }
+        },
+        {
+            accountCode: "UNEARNED_PREMIUM_LIABILITY",
+            creditAmount: {
+                amountValue: quoteResponse.pricing.amounts[0].amountValue,
+                currencyCode: "USD"
+            }
+        },
+        {
+            accountCode: "PREMIUM_FEE",
+            creditAmount: {
+                amountValue: quoteResponse.pricing.amounts[1].amountValue,
+                currencyCode: "USD"
+            }
+        }
+    ]
+};
+
+// Set payload
+mc.setPayloadJSON(result);]]></script>
+    <property name="HTTP_METHOD" scope="axis2" value="POST"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" value="/api/entries"/>
+    <call>
+        <endpoint key="general-ledger-sapi-restEndpoint"/>
+    </call>
+    <script language="js"><![CDATA[var quoteResponse = mc.getProperty("quoteResponse");
+
+// If stored as string, parse it
+if (quoteResponse && typeof quoteResponse === "string") {
+    quoteResponse = JSON.parse(quoteResponse);
+}
+
+// Set as payload
+mc.setPayloadJSON(quoteResponse);]]></script>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-create-quote-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending policy-admin-papi-create-quote-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>
+ 

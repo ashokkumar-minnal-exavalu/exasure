@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="policy-sapi-createquote-document-sequence" xmlns="http://ws.apache.org/ns/synapse">
+
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="documentId" expression="json-eval($.documentId)"/>
+        <property name="mongoInsertQuery" expression="json-eval($)"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-document-sapi"/>
+        <with-param name="sequence" value="policy-sapi-createquote-document-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started policy-sapi-createquote-document-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template> 
+       <mongodb.insertOne configKey="MongoDB-Connection">
+        <collection>Documents</collection>
+        <document>{$ctx:mongoInsertQuery}</document>
+        <responseVariable>mongodb_insertOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+<property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;documentId&quot;:&quot;', $ctx:documentId, '&quot;}')"/>
+    <mongodb.find configKey="MongoDB-Connection">
+        <collection>Documents</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+ <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <payloadFactory description="Response poayload" media-type="json">
+                <format>
+                    $1
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="No quote document exist in database" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-document-sapi"/>
+                <with-param name="sequence" value="policy-sapi-createquote-document-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="policy-sapi-document-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-document-sapi"/>
+        <with-param name="sequence" value="policy-sapi-createquote-document-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended policy-sapi-createquote-document-sequence"/>
+        <with-param name="status" value="End"/>
+    </call-template>
+</sequence>

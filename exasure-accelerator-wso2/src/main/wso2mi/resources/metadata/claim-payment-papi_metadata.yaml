@@ -1,0 +1,10 @@
+---
+key: "claim-payment-papi-1.0.0"
+name : "claim-payment-papi"
+displayName : "claim-payment-papi"
+description: "claim-payment-papi"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/claim-payment-papi/api/"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

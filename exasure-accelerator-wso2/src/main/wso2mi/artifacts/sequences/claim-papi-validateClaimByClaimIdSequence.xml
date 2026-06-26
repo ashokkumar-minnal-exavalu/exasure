@@ -1,0 +1,565 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-validateClaimByClaimIdSequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="claim-papi-validateClaimByClaimIdSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Initiating claim-papi-validateClaimByClaimIdSequence"/>
+		<with-param name="status" value="START"/>
+	</call-template>
+	<propertyGroup description="inputProperties">
+		<property name="claimId" expression="get-property('uri.var.claimId')"/>
+		<property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+		<property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/claim/',  $ctx:claimId)"/>
+	</propertyGroup>
+	<call>
+		<endpoint key="claim-papi-restEndpoint"/>
+	</call>
+	<log category="INFO" logMessageID="false" logFullPayload="false">
+		<message>LOG-afterClaimRetireval==========</message>
+		<property name="data" expression="json-eval($)"/>
+	</log>
+	<filter source="get-property('axis2','HTTP_SC')" regex="2\d{2}">
+		<then>
+            <property name="claimResponse" scope="default" expression="json-eval($)"/>
+			<scatter-gather parallel-execution="true" target="Body" result-content-type="JSON">
+                <aggregation expression="${payload}"/>
+				<!-- Policy call -->
+				<sequence>
+					<propertyGroup description="inputProperties">
+                        <property name="policyId" scope="default" type="STRING" expression="json-eval($[0].policy.policyNumber)"/>
+                        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/',  $ctx:policyId)"/>
+                    </propertyGroup>
+					<call>
+                        <endpoint key="policy-admin-papi-resrEndpoint"/>
+                    </call>
+					<filter source="$axis2:HTTP_SC" regex="200">
+						<then>
+							<payloadFactory media-type="json">
+								<format>{"policyResponse": $1}</format>
+								<args>
+                                    <arg evaluator="json" expression="$"/>
+                                </args>
+                            </payloadFactory>
+                        </then>
+						<else>
+							<payloadFactory media-type="json">
+								<format>
+                                    {
+                                    "errorCode": "$1",
+                                    "errorMessage": "$2",
+                                    "errorDetails": "$3",
+                                    "transactionId": "$4",
+                                    "timeStamp": "$5"
+                                    }
+                                </format>
+								<args>
+                                    <arg evaluator="json" expression="$.errorCode"/>
+                                    <arg evaluator="json" expression="$.errorMessage"/>
+                                    <arg evaluator="json" expression="$.errorDetails"/>
+                                    <arg evaluator="json" expression="$.transactionId"/>
+                                    <arg evaluator="json" expression="$.timeStamp"/>
+                                </args>
+                            </payloadFactory>
+                            <property name="HTTP_SC" scope="axis2" value="404"/>
+                            <respond/>
+                        </else>
+                    </filter>
+					<log level="full">
+                        <property name="ResponsePayload1" expression="json-eval($)"/>
+                    </log>
+                </sequence>
+				<!-- VIN call -->
+				<sequence>
+					<propertyGroup description="inputProperties">
+                        <property name="vinNumber" scope="default" type="STRING" expression="json-eval($[0].policy.insurableObjects[0].vehicle.vehicleIdentificationNumber)"/>
+                        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/vin-details/', $ctx:vinNumber)"/>
+                        <property name="client_id" value="a48b14368acd4cebb84375e564e50c5e" scope="transport"/>
+                        <property name="client_secret" value="C6A8166491fd434D8f70cAF044839ae1" scope="transport"/>
+                    </propertyGroup>
+					<log category="INFO" logMessageID="false" logFullPayload="false">
+                        <message/>
+                        <property name="LOG-VIN" expression="get-property('vinNumber')"/>
+                        <property name="LOG-VIN-PYALOAD" expression="json-eval($)"/>
+                    </log>
+					<call>
+                        <endpoint key="exasure-dmv-sapi-vin-restEndpoint"/>
+                    </call>
+					<filter source="$axis2:HTTP_SC" regex="200">
+						<then>
+							<payloadFactory media-type="json">
+								<format>{"vinResponse": $1}</format>
+								<args>
+                                    <arg evaluator="json" expression="$"/>
+                                </args>
+                            </payloadFactory>
+                        </then>
+						<else>
+							<payloadFactory media-type="json">
+								<format>
+                                    {
+                                    "errorCode": "$1",
+                                    "errorMessage": "$2",
+                                    "errorDetails": "$3",
+                                    "transactionId": "$4",
+                                    "timeStamp": "$5"
+                                    }
+                                </format>
+								<args>
+                                    <arg evaluator="json" expression="$.errorCode"/>
+                                    <arg evaluator="json" expression="$.errorMessage"/>
+                                    <arg evaluator="json" expression="$.errorDetails"/>
+                                    <arg evaluator="json" expression="$.transactionId"/>
+                                    <arg evaluator="json" expression="$.timeStamp"/>
+                                </args>
+                            </payloadFactory>
+                            <property name="HTTP_SC" scope="axis2" expression="$axis2:HTTP_SC"/>
+                            <respond/>
+                        </else>
+                    </filter>
+					<log level="full">
+                        <property name="ResponsePayload2" expression="json-eval($)"/>
+                    </log>
+                </sequence>
+				<!-- Driver call -->
+				<sequence>
+					<propertyGroup description="inputProperties">
+                        <property name="licenseNumber" scope="default" type="STRING" expression="json-eval($[0].policy.driverDetails.driverLicenseNumber)"/>
+                        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/license/', $ctx:licenseNumber, '/verification')"/>
+                    </propertyGroup>
+					<log category="INFO" logMessageID="false" logFullPayload="false">
+                        <message/>
+                        <property name="LOG-PAYLOAD" expression="json-eval($)"/>
+                    </log>
+					<log category="INFO" logMessageID="false" logFullPayload="false">
+                        <message/>
+                        <property name="LOG-LN" expression="get-property('licenseNumber')"/>
+                    </log>
+                    <property name="ContentType" value="application/x-www-form-urlencoded" scope="axis2"/>
+                    <property name="ContentType" action="remove" scope="axis2"/>
+                    <header name="Content-Type" scope="transport" action="remove"/>
+					<call>
+                        <endpoint key="dmv-sapi-license-restEndpoint"/>
+                    </call>
+					<log category="INFO" logMessageID="false" logFullPayload="false">
+                        <message/>
+                        <property name="afetrLicense" expression="json-eval($)"/>
+                    </log>
+					<filter source="$axis2:HTTP_SC" regex="200">
+						<then>
+							<payloadFactory media-type="json">
+								<format>{"driverResponse": $1}</format>
+								<args>
+                                    <arg evaluator="json" expression="$"/>
+                                </args>
+                            </payloadFactory>
+                        </then>
+						<else>
+							<payloadFactory media-type="json">
+								<format>
+                                    {
+                                    "isSuccessfull": false,
+                                    "errorCode": "404",
+                                    "errorMessage": "No Driving license record found for the license number: $1",
+                                    "errorDetails": "No Driving license record found for the license number: $1",
+                                    "transactionId": "c8f17f6f-dd0e-4efc-8fb1-dbb2749c349a",
+                                    "timeStamp": "2026-02-06T13:22:26.176150302Z"
+                                    }
+                                </format>
+								<args>
+                                    <arg evaluator="xml" expression="get-property('licenseNumber')"/>
+                                </args>
+                            </payloadFactory>
+                            <property name="HTTP_SC" scope="axis2" expression="$axis2:HTTP_SC"/>
+                            <respond/>
+                        </else>
+                    </filter>
+					<log level="full">
+                        <property name="ResponsePayload3" expression="json-eval($)"/>
+                    </log>
+                </sequence>
+				<!-- Claims by PolicyHolder call -->
+				<sequence>
+					<propertyGroup description="inputProperties">
+                        <property name="policyHolderId" scope="default" type="STRING" expression="json-eval($[0].parties[0].partyIdentifier)"/>
+                        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/claim/policyHolder/', $ctx:policyHolderId)"/>
+                    </propertyGroup>
+					<call>
+                        <endpoint key="claim-sapi-restEndpoint"/>
+                    </call>
+					<filter source="$axis2:HTTP_SC" regex="200">
+						<then>
+							<payloadFactory media-type="json">
+								<format>{"claimsByPolicyHolderResponse": $1}</format>
+								<args>
+                                    <arg evaluator="json" expression="$"/>
+                                </args>
+                            </payloadFactory>
+                        </then>
+						<else>
+							<payloadFactory media-type="json">
+								<format>
+                                    {
+                                    "isSuccessfull": "$1",
+                                    "errorCode": "$2",
+                                    "errorMessage": "$3",
+                                    "errorDetails": "$4",
+                                    "transactionId": "$5",
+                                    "timeStamp": "$6"
+                                    }
+                                </format>
+								<args>
+                                    <arg evaluator="json" expression="$.isSuccessfull"/>
+                                    <arg evaluator="json" expression="$.errorCode"/>
+                                    <arg evaluator="json" expression="$.errorMessage"/>
+                                    <arg evaluator="json" expression="$.errorDetails"/>
+                                    <arg evaluator="json" expression="$.transactionId"/>
+                                    <arg evaluator="json" expression="$.timeStamp"/>
+                                </args>
+                            </payloadFactory>
+                            <property name="HTTP_SC" scope="axis2" expression="$axis2:HTTP_SC"/>
+                            <respond/>
+                        </else>
+                    </filter>
+					<log level="full">
+                        <property name="ResponsePayload4" expression="json-eval($)"/>
+                    </log>
+                </sequence>
+            </scatter-gather>
+			<log category="INFO" logMessageID="false" logFullPayload="false">
+                <message/>
+                <property name="LOG-AfterScatterGather" expression="json-eval($)"/>
+            </log>
+			<!-- Normalize aggregated response -->
+			<script language="js"><![CDATA[var payload = mc.getPayloadJSON();
+var claimResponse = null;
+var policyResponse = null;
+var vinResponse = null;
+var driverResponse = null;
+
+// Read property (currently string)
+var claimRequest = mc.getProperty("claimResponse");
+
+// Convert stringified JSON to proper JSON object
+if (claimRequest && typeof claimRequest === "string") {
+    claimRequest = JSON.parse(claimRequest);
+}
+
+// If the structure is { "claimRequest": {...} } and you want only inner object
+if (claimRequest && claimRequest.claimRequest) {
+    claimRequest = claimRequest.claimRequest;
+}
+
+payload.forEach(function (item) {
+    if (item.claimsByPolicyHolderResponse) claimResponse = item.claimsByPolicyHolderResponse;
+    if (item.policyResponse) policyResponse = item.policyResponse;
+    if (item.vinResponse) vinResponse = item.vinResponse;
+    if (item.driverResponse) driverResponse = item.driverResponse;
+});
+
+if (!claimResponse || !policyResponse) throw "Mandatory backend response missing";
+
+// ✅ Build aggregated response
+var aggregatedResponse = {
+    claimRequest: claimRequest,
+    claim: claimResponse,
+    policy: policyResponse,
+    vin: vinResponse,
+    driver: driverResponse
+};
+var aggregatedResponse = {
+    claimRequest: claimRequest,
+    claim: claimResponse,
+    policy: policyResponse,
+    vin: vinResponse,
+    driver: driverResponse
+};
+
+mc.setProperty("aggregatedResponse", JSON.stringify(aggregatedResponse));
+]]></script>
+			<log category="INFO" logMessageID="false" logFullPayload="false">
+                <message/>
+                <property name="LOG-AfterFirstScript" expression="get-property('aggregatedResponse')"/>
+            </log>
+			<propertyGroup description="inputProperties">
+                <property name="claimId" expression="get-property('uri.var.claimId')"/>
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/api/claim/', $ctx:claimId, '/inspection-reports')"/>
+            </propertyGroup>
+			<call>
+                <endpoint key="claim-assessment-sapi-restEndpoint"/>
+            </call>
+			<log category="INFO" logMessageID="false" logFullPayload="false">
+                <message/>
+                <property name="LOG-Assessment-PAYLOAD" expression="json-eval($)"/>
+            </log>
+            <script language="js"><![CDATA[// ==================================
+// READ AGGREGATED RESPONSE
+// ===================================
+
+var aggregatedResponse = mc.getProperty("aggregatedResponse");
+
+if (typeof aggregatedResponse === "string") {
+    aggregatedResponse = JSON.parse(aggregatedResponse);
+}
+
+// Read payload as lossPayload
+var lossPayload = mc.getPayloadJSON();
+
+var approvedAmount = 0;
+
+if (lossPayload &&
+    lossPayload.assessment &&
+    lossPayload.assessment.netPayableAmount != null) {
+
+    approvedAmount = parseFloat(lossPayload.assessment.netPayableAmount) || 0;
+}
+
+// ==============================
+// EXTRACT OBJECTS (UNCHANGED)
+// ==============================
+
+var claimRequest = aggregatedResponse.claimRequest || null;
+var policy = aggregatedResponse.policy || null;
+var vinResponse = aggregatedResponse.vin || null;
+var driverResponse = aggregatedResponse.driver || null;
+var claimData = aggregatedResponse.claim || null;
+
+if (!claimRequest) throw "claimRequest not found";
+if (!policy) throw "policy not found";
+
+
+// ==============================
+// HANDLE ARRAY (CRITICAL FIX)
+// ==============================
+
+if (Array.isArray(claimRequest)) {
+    claimRequest = claimRequest[0];
+}
+
+
+// =============================
+// DATE HELPERS
+// =============================
+
+function parseDate(val) {
+    if (!val) return null;
+    if (val.indexOf("Z") === -1)
+        val = val + "Z";
+    return new Date(val);
+}
+
+function parseEndOfDay(val) {
+    if (!val) return null;
+    return new Date(val.split("T")[0] + "T23:59:59Z");
+}
+
+function addDays(date, days) {
+    var d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+}
+
+
+// ================================
+// READ DATES
+// ================================
+
+var claimIntimationDate =
+    parseDate(claimRequest.claimIntimationDate);
+
+var incidentDate =
+    parseDate(claimRequest.incidentDateTime);
+
+var licenseExpiry =
+    parseEndOfDay(
+        driverResponse &&
+        driverResponse.expirationDate
+    );
+
+
+// ========================================
+// POLICY VALIDATION (USING TERM START DATE)
+// ========================================
+
+var policyStartDate =
+    parseDate(policy.termStartDate);
+
+var policyEndDate =
+    parseDate(policy.termEndDate);
+
+var policyValidation = "Invalid";
+
+if (policyEndDate && claimIntimationDate) {
+
+    var startPlus24Hours =
+        policyStartDate ? addDays(policyStartDate, 1) : null;
+
+    if (policyEndDate > claimIntimationDate &&
+        (!startPlus24Hours || startPlus24Hours < claimIntimationDate)) {
+
+        policyValidation = "Valid";
+
+    }
+    else if (startPlus24Hours &&
+             startPlus24Hours > claimIntimationDate) {
+
+        policyValidation =
+            "A claim cannot be raised within 24 hours of policy start date";
+    }
+}
+
+
+// ===================================
+// VEHICLE VALIDATION
+// ===================================
+
+var vehicleValidation = "Invalid";
+
+var backendVIN =
+    vinResponse &&
+    vinResponse.length > 0 &&
+    vinResponse[0].VIN
+        ? vinResponse[0].VIN
+        : null;
+
+if (!backendVIN) {
+
+    vehicleValidation =
+        "VIN validation failed for VIN Number : " +
+        (claimRequest.vehicleDetails && claimRequest.vehicleDetails.vin);
+
+} else {
+
+    vehicleValidation = "Valid";
+}
+
+
+// ======================================
+// DRIVER VALIDATION
+// ======================================
+
+var driverValidation = "Valid";
+
+if (incidentDate &&
+    licenseExpiry &&
+    incidentDate > licenseExpiry) {
+
+    driverValidation =
+        "The driving license for license Number : " +
+        (driverResponse && driverResponse.licenseNumber) +
+        " has expired on date " +
+        (driverResponse && driverResponse.expirationDate);
+}
+// ============================================================
+// COVERAGE VALIDATION (FIXED AS PER ACTUAL STRUCTURE)
+// ============================================================
+
+var coverageValidation = "Invalid";
+
+// Requested coverage → from claimRequest (array-safe)
+var requestedCoverageId =
+    claimRequest &&
+    claimRequest.policy &&
+    claimRequest.policy.insurableObjects &&
+    claimRequest.policy.insurableObjects[0] &&
+    claimRequest.policy.insurableObjects[0].coverage &&
+    claimRequest.policy.insurableObjects[0].coverage[0] &&
+    claimRequest.policy.insurableObjects[0].coverage[0].coverageIdentifier;
+
+// Policy coverage → from policy response
+var policyCoverageId =
+    policy &&
+    policy.insurableObjects &&
+    policy.insurableObjects[0] &&
+    policy.insurableObjects[0].coverages &&
+    policy.insurableObjects[0].coverages[0] &&
+    policy.insurableObjects[0].coverages[0].coverageIdentifier;
+
+// DW equivalent logic
+if (!requestedCoverageId) {
+
+    coverageValidation = "Invalid";
+
+}
+else if (policyCoverageId === requestedCoverageId) {
+
+    coverageValidation = "Valid";
+
+}
+else {
+
+    coverageValidation = "Invalid";
+}
+// ======================================
+// FRAUD RISK (DW ALIGNED)
+// ======================================
+
+var fraudRisk = "High";
+
+var rejectedClaims =
+    claimRequest.claimStats &&
+    claimRequest.claimStats.rejectedClaims;
+
+if (rejectedClaims > 5) {
+
+    fraudRisk = "Medium";
+
+} else if (rejectedClaims > 0) {
+
+    fraudRisk = "Low";
+
+} else {
+
+    fraudRisk = "High";
+}
+
+
+// ==========================================
+// VALIDATION STATUS
+// ==========================================
+
+var validationStatus =
+    (policyValidation === "Valid" &&
+     vehicleValidation === "Valid" &&
+     driverValidation === "Valid" &&
+     coverageValidation === "Valid")
+        ? "Passed"
+        : "Failed";
+
+
+// =======================================
+// FINAL RESPONSE
+// =======================================
+
+mc.setPayloadJSON({
+
+    policy: policyValidation,
+    vehicle: vehicleValidation,
+    driver: driverValidation,
+    coverage: coverageValidation,
+    fraudRisk: fraudRisk,
+    validationStatus: validationStatus,
+    approvedAmount: approvedAmount
+
+});]]></script>
+			<property name="HTTP_SC" value="200" scope="axis2"/>
+            <!-- Validation script -->
+        </then>
+		<else>
+            <!-- FAILURE: return backend response AS-IS -->
+        </else>
+	</filter>
+	<call-template target="Common-Log-Template-V1" description="start-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="claim-papi-validateClaimByClaimIdSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Ending claim-papi-validateClaimByClaimIdSequence"/>
+		<with-param name="status" value="END"/>
+	</call-template>
+	<respond/>
+</sequence>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-sapi-getClaimBypolicyHolderIdSequence" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+		<with-param name="service" value="claim-sapi"/>
+		<with-param name="sequence" value="claim-sapi-getClaimBypolicyHolderIdSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Initiating claim-sapi-getClaimBypolicyHolderIdSequence"/>
+		<with-param name="status" value="START"/>
+	</call-template>
+	<property name="policyHolderId" expression="get-property('uri.var.policyHolderId')" scope="default" type="STRING"/>
+	<property name="claimQuery" type="STRING" expression="fn:concat('{&quot;claimRequest.parties.partyIdentifier&quot;:&quot;', $ctx:policyHolderId, '&quot;}')"/>
+	<mongodb.find configKey="wso2DB">
+		<collection>Claims</collection>
+		<query>{$ctx:claimQuery}</query>
+		<responseVariable>claimDetailsResult</responseVariable>
+		<overwriteBody>true</overwriteBody>
+	</mongodb.find>
+	<filter source="json-eval($.found)" regex="true">
+		<then>
+			<payloadFactory media-type="json">
+				<format>$1</format>
+				<args>
+					<arg evaluator="json" expression="json-eval($)"/>
+				</args>
+			</payloadFactory>
+		</then>
+		<else>
+			<property name="HTTP_SC" value="404" scope="axis2"/>
+			<property name="timeStamp" expression="get-property('SYSTEM_DATE')" scope="default"/>
+			<payloadFactory media-type="json">
+				<format> { "isSuccessfull": false, "errorCode": "404", "errorMessage": "No claims record found for policyHolderId: $1", "errorDetails": "No claims record found for policyHolderId: $1", "transactionId": "$2", "timeStamp": "$3" } </format>
+				<args>
+					<arg evaluator="xml" expression="$ctx:policyHolderId"/>
+					<arg evaluator="xml" expression="get-property('correlation_id')"/>
+					<arg evaluator="xml" expression="$ctx:timeStamp"/>
+				</args>
+			</payloadFactory>
+		</else>
+	</filter>
+	<call-template target="Common-Log-Template-V1" description="end-log">
+		<with-param name="service" value="claim-sapi"/>
+		<with-param name="sequence" value="claim-sapi-getClaimBypolicyHolderIdSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Ending claim-sapi-getClaimBypolicyHolderIdSequence"/>
+		<with-param name="status" value="END"/>
+	</call-template>
+	<respond/>
+</sequence>

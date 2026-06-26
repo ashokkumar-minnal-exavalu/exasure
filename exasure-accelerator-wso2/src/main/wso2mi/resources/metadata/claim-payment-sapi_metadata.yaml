@@ -1,0 +1,10 @@
+---
+key: "claim-payment-sapi-1.0.0"
+name : "claim-payment-sapi"
+displayName : "claim-payment-sapi"
+description: "claim-payment-sapi"
+version: "1.0.0"
+serviceUrl: "https://{MI_HOST}:{MI_PORT}/claim-payment-sapi"
+definitionType: "OAS3"
+securityType: "BASIC"
+mutualSSLEnabled: false

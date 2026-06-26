@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-rejectClaimByClaimIdSequence" xmlns="http://ws.apache.org/ns/synapse">
+  <call-template target="Common-Log-Template-V1" description="start-log">
+    <with-param name="service" value="claim-api"/>
+    <with-param name="sequence" value="claim-papi-rejectClaimByClaimIdSequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="Initiating claim-papi-rejectClaimByClaimIdSequence"/>
+    <with-param name="status" value="START"/>
+  </call-template>
+  <propertyGroup description="inputProperties">
+    <property name="claimId" expression="get-property('uri.var.claimId')"/>
+    <property name="rejectionMessage" expression="json-eval($.rejectionMessage)" scope="default" type="STRING"/>
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/claim/',  $ctx:claimId)"/>
+  </propertyGroup>
+  <call>
+    <endpoint key="claim-sapi-restEndpoint"/>
+  </call>
+  <filter source="get-property('axis2','HTTP_SC')" regex="2\d{2}">
+    <then>
+      <propertyGroup>
+        <property name="claimStatusCode" expression="json-eval($.data[0].claimRequest.claimStatusCode)" scope="default" type="STRING"/>
+        <property name="claimId" expression="json-eval($.data[0].claimRequest.claimId)" scope="default" type="STRING"/>
+        <property name="policyId" expression="json-eval($.data[0].claimRequest.policyId)" scope="default" type="STRING"/>
+        <property name="claimIntimationDate" expression="json-eval($.data[0].claimRequest.claimIntimationDate)" scope="default"/>
+      </propertyGroup>
+      <filter source="$ctx:claimStatusCode" regex="APPLIED">
+        <!-- ✅ Success route -->
+        <then>
+          <propertyGroup description="inputPatchProperties">
+            <property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+            <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/claim/', $ctx:claimId, '/reject')"/>
+          </propertyGroup>
+          <payloadFactory media-type="json">
+            <format>
+              {
+              "rejectionMessage": "$1"
+              }
+            </format>
+            <args>
+              <arg expression="$ctx:rejectionMessage"/>
+            </args>
+          </payloadFactory>
+          <call>
+            <endpoint key="claim-sapi-restEndpoint"/>
+          </call>
+          <payloadFactory media-type="json">
+            <format>$1</format>
+            <args>
+              <arg evaluator="json" expression="json-eval($)"/>
+            </args>
+          </payloadFactory>
+          <propertyGroup description="emailProperties">
+            <property name="messageType" value="text/html" scope="axis2"/>
+            <property name="ContentType" value="text/html" scope="axis2"/>
+            <property name="mail.smtp.from" value="noreply@exasure.com"/>
+            <property name="mail.smtp.to" value="exavaluinsuranceaccelarator@gmail.com"/>
+            <property name="mail.smtp.subject" scope="axis2" type="STRING" expression="concat('Claim Update - ', $ctx:claimId)"/>
+          </propertyGroup>
+          <payloadFactory media-type="text/html">
+            <format>
+<![CDATA[
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family:Arial, Helvetica, sans-serif; background:#f4f6f8; color:#333; }
+    .container { max-width:700px; margin:20px auto; background:#fff; border-radius:6px; }
+    .header { background:#2c3e50; padding:24px; text-align:center; color:#fff; font-size:26px; font-weight:bold; }
+    .body { padding:30px; font-size:15px; line-height:1.6; }
+    .footer { padding:20px; text-align:center; font-size:12px; color:#9aa7bf; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">Claim Update for Claim $1</div>
+    <div class="body">
+      <p>$2</p>
+      <p>Dear User,</p>
+      <p>
+        We would like to inform you that the review of your Personal Auto Insurance claim
+        submitted on <b>$3</b> has been completed.
+      </p>
+      <p>
+        For security and privacy reasons, detailed information regarding the outcome of your claim
+        is available only through the Exasure Insurance Integration Cloud portal.
+      </p>
+      <div style="text-align:center;margin:25px;">
+        <a href="http://localhost:5173/home"
+           style="background:#2c3e50;color:#fff;padding:12px 22px;text-decoration:none;border-radius:6px;">
+           View Claim Details
+        </a>
+      </div>
+      <p>Sincerely,<br/><strong>Exasure IIC</strong></p>
+    </div>
+    <div class="footer">
+      This is an automated message. Please do not reply.
+    </div>
+  </div>
+</body>
+</html>
+]]></format>
+            <args>
+              <arg expression="$ctx:claimId"/>
+              <arg expression="get-property('SYSTEM_DATE')"/>
+              <arg expression="$ctx:claimIntimationDate"/>
+            </args>
+          </payloadFactory>
+          <script language="js"><![CDATA[
+
+    // -------------------------------
+    // Get variables from message context
+    // -------------------------------
+    var claimId = mc.getProperty("claimId") || "N/A";
+    var policyId = mc.getProperty("policyId") || "N/A";
+    var claimIntimationDate = mc.getProperty("claimIntimationDate") || new Date().toISOString();
+
+    // -------------------------------
+    // Format dates
+    // -------------------------------
+    var now = new Date();
+    var options = { month: 'long', day: '2-digit', year: 'numeric', hour:'2-digit', minute:'2-digit', hour12:true };
+    var formattedNow = now.toLocaleString('en-US', options);
+
+    var intimationDate = new Date(claimIntimationDate);
+    var formattedIntimationDate = intimationDate.toLocaleString('en-US', options);
+
+    // -------------------------------
+    // Build email subject
+    // -------------------------------
+    var emailSubject = "Claim Update for Claim " + claimId;
+    mc.setProperty("Email_Subject", emailSubject);
+
+    // -------------------------------
+    // Build email HTML body
+    // -------------------------------
+    var emailBody = '<!doctype html>\
+<html lang="en">\
+<head>\
+  <meta charset="utf-8">\
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\
+  <style>\
+    body { margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; background:#f4f6f8; color:#333; }\
+    .container { max-width:700px; margin:20px auto; background:#fff; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15); }\
+    .header { background:#2c3e50; padding:24px; text-align:center; color:#fff; font-size:26px; font-weight:bold; }\
+    .body { padding:30px; font-size:15px; line-height:1.6; }\
+    .section-title { font-size:20px; font-weight:bold; margin-bottom:20px; text-align:center; }\
+    .footer { padding:20px; text-align:center; font-size:12px; color:#9aa7bf; }\
+  </style>\
+</head>\
+<body>\
+  <div class="container">\
+    <div class="header">Claim Update for Claim ' + claimId + '</div>\
+    <div class="body">\
+      <p>' + formattedNow + '</p>\
+      <p>Dear User,</p>\
+      <p>We would like to inform you that the review of your Personal Auto Insurance claim submitted on ' + formattedIntimationDate + ' has been completed.</p>\
+      <p>For security and privacy reasons, detailed information regarding the outcome of your claim is available only through the Exasure Insurance Integration Cloud portal.</p>\
+      <p>Please log in to your account to view the full details, including next steps and any actions required from your side.</p>\
+      <div style="margin:25px 0; text-align:center;">\
+        <a href="http://localhost:5173/home" style="background:#2c3e50; color:#ffffff; padding:12px 22px; text-decoration:none; font-size:15px; font-weight:bold; border-radius:6px; display:inline-block;">View Claim Details</a>\
+      </div>\
+      <p>If you have questions or need assistance accessing the portal, please contact our Claims Support team at exavaluinsuranceaccelarator@gmail.com.</p>\
+      <p>Sincerely,<br>\
+      <strong>Exasure IIC</strong><br>\
+      Claims & Customer Support</p>\
+    </div>\
+    <div class="footer">\
+      Exasure | http://localhost:5173/home<br>\
+      This is an automated message. Please do not reply.\
+    </div>\
+  </div>\
+</body>\
+</html>';
+
+    // -------------------------------
+    // Set the email body property
+    // -------------------------------
+    mc.setProperty("Email_Body", emailBody);
+
+    // -------------------------------
+    // Logging for debugging
+    // -------------------------------
+    mc.getServiceLog().info("Email_Async_Start = Starting async email");
+    mc.getServiceLog().info("ClaimId = " + claimId);
+    mc.getServiceLog().info("PolicyId = " + policyId);
+    mc.getServiceLog().info("Email_Subject = " + emailSubject);
+    mc.getServiceLog().info("Email_Body (first 200 chars) = " + emailBody.substring(0,200) + "...");
+    mc.getServiceLog().info("Email_Async_End = Email properties prepared for sending");
+
+]]></script>
+          <sequence key="send-email-seq"/>
+        </then>
+        <!-- ❌ Default / Error route -->
+        <else>
+          <payloadFactory media-type="json">
+            <format>
+              {
+              "errorCode": "400",
+              "errorMessage": "The claim with Claim ID $1 is currently in '$2' status. Only claims in 'APPLIED' status are eligible for rejection.",
+              "errorDetails": "The claim with Claim ID $1 is currently in '$2' status. Only claims in 'APPLIED' status are eligible for rejection.",
+              "transactionId": "$3",
+              "timeStamp": "$4"
+              }
+            </format>
+            <args>
+              <arg expression="$ctx:claimId"/>
+              <arg expression="$ctx:claimStatusCode"/>
+              <arg expression="get-property('correlationId')"/>
+              <arg expression="get-property('SYSTEM_DATE')"/>
+            </args>
+          </payloadFactory>
+          <property name="HTTP_SC" value="400" scope="axis2"/>
+        </else>
+      </filter>
+    </then>
+    <else>
+      <!-- FAILURE: return backend response AS-IS -->
+    </else>
+  </filter>
+  <property name="messageType" value="application/json" scope="axis2"/>
+  <call-template target="Common-Log-Template-V1" description="end-log">
+    <with-param name="service" value="claim-api"/>
+    <with-param name="sequence" value="claim-papi-rejectClaimByClaimIdSequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="Ending claim-papi-rejectClaimByClaimIdSequence"/>
+    <with-param name="status" value="END"/>
+  </call-template>
+  <respond/>
+</sequence>

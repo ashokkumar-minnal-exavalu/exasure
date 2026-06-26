@@ -1,0 +1,94 @@
+openapi: 3.0.1
+info:
+  title: claim-assessment-sapi
+  description: API Definition of claim-assessment-sapi
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8290/claim-assessment-sapi
+  - url: https://localhost:8253/claim-assessment-sapi
+
+paths:
+  /api/claim/{claimId}/loss-items:
+    get:
+      parameters:
+        - name: claimId
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        default:
+          description: Default response
+
+    post:
+      parameters:
+        - name: claimId
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response
+
+    patch:
+      parameters:
+        - name: claimId
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      requestBody:
+        description: Sample Payload
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: object
+          application/xml:
+            schema:
+              type: object
+              xml:
+                name: payload
+        required: false
+      responses:
+        default:
+          description: Default response
+
+  /api/claim/{claimId}/inspection-reports:
+    get:
+      parameters:
+        - name: claimId
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        default:
+          description: Default response

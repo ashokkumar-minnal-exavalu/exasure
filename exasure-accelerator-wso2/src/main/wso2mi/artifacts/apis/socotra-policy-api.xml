@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/socotra-policy-api/api" name="socotra-policy-api" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/policy/{policyId}">
+        <inSequence>
+            <sequence key="socotra-policy-sapi-getPolicyBy-policyId-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="socotra-policy-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+</api>

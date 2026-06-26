@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/invoice-sapi/api" name="invoice-sapi" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/invoices/{invoiceId}">
+        <inSequence>
+            <sequence key="invoice-sapi-get-invoice-by-invoiceId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/invoices">
+        <inSequence>
+            <sequence key="invoice-sapi-create-invoice-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/{invoiceId}/mark-paid">
+        <inSequence>
+            <sequence key="invoice-sapi-update-mark-paid-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/taxes/rates/{state}">
+        <inSequence>
+            <sequence key="invoice-sapi-get-tax-rate-by-state-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/invoices/fetch-all/{quoteId}">
+        <inSequence>
+            <sequence key="invoice-sapi-get-all-invoices-by-quoteId-sequence"/>
+            <respond/>
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="general-ledger-sapi-update-GL-by-claimId-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')" scope="default" type="STRING"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="general-ledger-sapi"/>
+        <with-param name="sequence" value="general-ledger-sapi-update-GL-by-claimId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Initiating general-ledger-sapi-update-GL-by-claimId-sequence for claimId- ', $ctx:uri.var.claimId)}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <payloadFactory media-type="json">
+        <format>
+            {
+            "$set": $1
+            }
+        </format>
+        <args>
+            <arg evaluator="json" expression="$"/>
+        </args>
+    </payloadFactory>
+    <property name="updateQuery" expression="fn:concat('{&quot;claimId&quot;:&quot;', $ctx:claimId, '&quot;}')"/>
+    <property name="updatePayload" expression="json-eval($)" scope="default" type="STRING"/>
+    <mongodb.updateOne configKey="WSO2-MongoDB-Connection">
+        <collection>GLclaims</collection>
+        <query>{$ctx:updateQuery}</query>
+        <update>{$ctx:updatePayload}</update>
+        <upsert>false</upsert>
+        <responseVariable>mongoUpdateResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.updateOne>
+    <sequence key="general-ledger-sapi-get-GL-by-claimId-sequence"/>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="general-ledger-sapi"/>
+        <with-param name="sequence" value="general-ledger-sapi-update-GL-by-claimId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Ending general-ledger-sapi-update-GL-by-claimId-sequence for claimId- ', $ctx:uri.var.claimId)}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

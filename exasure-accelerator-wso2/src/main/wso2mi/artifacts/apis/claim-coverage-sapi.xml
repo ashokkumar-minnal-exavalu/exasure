@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/claim-coverage-sapi/api/claim" name="claim-coverage-sapi" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/{claimId}/coverages">
+        <inSequence>
+            <sequence key="claim-coverage-sapi-get-allCoverages-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-coverage-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/{policyNumber}/coverage">
+        <inSequence>
+            <sequence key="claim-coverage-sapi-createCoverage-sequence"/>
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-coverage-sapi-common-fault-sequence"/>
+        </faultSequence>
+    </resource>
+</api>
