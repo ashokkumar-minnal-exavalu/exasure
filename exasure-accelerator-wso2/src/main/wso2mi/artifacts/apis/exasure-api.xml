@@ -1,0 +1,1704 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="exasure-api" context="/exasure-api"><resource methods="POST" uri-template="/agent-compensation-sapi-api/agent-compensations">
+        <inSequence>
+            <sequence key="agent-compensations-sapi-createcompensationSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agent-compensation-sapi-api/agent-compensations">
+        <inSequence>
+            <property name="agentId" expression="$url:agentId" />
+            <sequence key="agent-compensations-sapi-getcompensationSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/agent-compensation-sapi-api/agents/{agentId}/statements/generate">
+        <inSequence>
+            <property name="agentId" expression="get-property('uri.var.agentId')" scope="default" />
+            
+            <sequence key="agent-compensations-sapi-generateagentstatementSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agent-compensation-sapi-api/agents/{quoteId}/agent-statements/quote">
+        <inSequence>
+            <property name="quoteId" expression="get-property('uri.var.quoteId')" scope="default" />
+            <log><property name="quoteId" expression="get-property('uri.var.quoteId')" scope="default" /></log>
+            <sequence key="agent-compensations-sapi-agentstatementquoteSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agent-compensation-sapi-api/agents/{agentId}/statements">
+        <inSequence>
+            <property name="agentId" expression="get-property('uri.var.agentId')" scope="default" />
+            
+            <sequence key="agent-compensations-sapi-getagentstatementSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agent-compensation-sapi-api/agents/fetch-all-agentStatement">
+        <inSequence>
+            <sequence key="agent-compensations-sapi-fetchallagentstatementSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/agent-compensation-sapi-api/agents/{quoteId}/agent-statements/status">
+        <inSequence>
+            <property name="quoteId" expression="get-property('uri.var.quoteId')" scope="default" />
+
+<enrich>
+    <source clone="true" type="body" />
+    <target property="initPayload" type="property" />
+</enrich>
+<property name="statementStatusCode" expression="json-eval($.statementStatusCode)" />
+            <sequence key="agent-compensations-sapi-updateagentstatementSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/audit-trail-sapi/audit-trail">
+        <inSequence>
+            <sequence key="create-audit-trail-record-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/audit-trail-sapi/audit-trail/claim/{claimId}">
+        <inSequence>
+            <sequence key="get-audit-claim-record-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/audit-trail-sapi/audit-trail/{quoteId}">
+        <inSequence>
+            <sequence key="get-audit-trail-record-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/audit-trail-sapi/update/audit-trail/claim/{claimId}">
+        <inSequence>
+            <sequence key="update-audit-claim-record-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>           
+    <resource methods="PATCH" uri-template="/audit-trail-sapi/update/audit-trail/{quoteId}">
+        <inSequence>
+            <sequence key="update-audit-trail-record-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>                              
+<resource methods="GET" uri-template="/b2c-xapi/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="get-specific-policyHolder-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/api/all/policyHolder">
+        <inSequence>
+            <sequence key="get-all-policyHolder-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/b2c-xapi/api/policyHolder">
+        <inSequence>
+            <sequence key="post-specific-policyHolder-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/b2c-xapi/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="patch-specific-policyHolder-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/policyAPI/{policyId}">
+        <inSequence>
+            <sequence key="get-specific-policy-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/b2c-xapi/api/policy">
+        <inSequence>
+            <sequence key="post-specific-policy-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/b2c-xapi/api/policy/{policyId}/issuance">
+        <inSequence>
+            <sequence key="patch-issue-specific-policy-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/b2c-xapi/api/policy/{policyId}/cancellation">
+        <inSequence>
+            <sequence key="patch-cancel-specific-policy-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/api/all/policy">
+        <inSequence>
+            <sequence key="get-all-policy-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/api/policyholder/{policyHolderId}/policies">
+        <inSequence>
+            <sequence key="get-policies-against-policyHolder-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/api/quote/{quoteId}">
+        <inSequence>
+            <sequence key="b2c-xapi-getQuoteByQuoteId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" description="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/b2c-xapi/api/quote/{quoteId}/accept">
+        <inSequence>
+            <sequence key="b2c-xapi-patch-acceptQuote-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" description="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/b2c-xapi/api/quote/{quoteId}/discard">
+        <inSequence>
+            <sequence key="b2c-xapi-patch-discardQuote-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" description="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/b2c-xapi/api/quote">
+        <inSequence>
+            <sequence key="b2c-xapi-createQuote-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/api/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="b2c-xapi-getQuoteByPolicyHolderId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/b2c-xapi/signup">
+        <inSequence>
+            <sequence key="post-user-signup-xapi-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/b2c-xapi/login">
+        <inSequence>
+            <sequence key="post-user-login-xapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/claim">
+        <inSequence>
+            <sequence key="b2c-xapi-getAll-Claims-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/b2c-xapi/claim/{claimId}/reject">
+        <inSequence>
+            <sequence key="b2c-xapi-rejectClaimByClaimId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/b2c-xapi/claim">
+        <inSequence>
+            <sequence key="b2c-xapi-createClaim-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/claim/{claimId}">
+        <inSequence>
+            <sequence key="b2c-xapi-getClaim-by-claimId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/claim/{claimId}/validate">
+        <inSequence>
+        <sequence key="b2c-xapi-validateClaimByClaimId-sequence" /></inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/b2c-xapi/claim/{claimId}/accept">
+        <inSequence>
+            <sequence key="b2c-xapi-acceptClaimByClaimId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/b2c-xapi/claim/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="b2c-xapi-getClaimByPolicyHolderId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="b2c-xapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>              
+<resource methods="POST" uri-template="/billing-account-sapi/api/billing-accounts">
+        <inSequence>
+            <sequence key="billing-account-sapi-createBillingAccount-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-account-sapi/api/billing-accounts/{billingAccountId}">
+        <inSequence>
+            <sequence key="billing-account-sapi-getBillngAccount-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/billing-payment-papi/api/refund">
+        <inSequence>
+            <sequence key="refund-billing-payment-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+
+    <resource methods="GET" uri-template="/billing-payment-papi/api/billing-payment/agents/{quoteId}/agent-statements/quote">
+        <inSequence>
+            <sequence key="billing-payment-papi-retrieve-agentstatement-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+
+    
+    <resource methods="GET" uri-template="/billing-payment-papi/api/agent">
+        <inSequence>
+            <sequence key="billing-payment-papi-agent-payout-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+
+    
+    <resource methods="GET" uri-template="/billing-payment-papi/api/billing-payment/agents/{agentId}/statements">
+        <inSequence>
+            <sequence key="get-agent-statements-billing-payment-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-papi/api/mail">
+        <inSequence>
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-papi/api/billing-payment/billing">
+        <inSequence>
+            <sequence key="billing-payment-papi-create-billing-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-papi/api/billing-payment/invoices/{invoiceId}">
+        <inSequence>
+            <sequence key="billing-payment-papi-retrive-invoices-by-invoiceId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="billing-payment-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-papi/api/billing-payment/invoices/fetch-all/{quoteId}">
+        <inSequence>
+            <sequence key="billing-payment-papi-retrive-invoices-by-quoteId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="billing-payment-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/store-payout">
+        <inSequence>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>${payload}</message>
+            </log>
+            <sequence key="billing-payment-sapi-store-payout-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-sapi/api/billing-payment/retrive-payout/{payoutId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-retrive-payout-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/payout">
+        <inSequence>
+            <sequence key="billing-payment-sapi-create-payout-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/payment-intent">
+        <inSequence>
+            <sequence key="billing-payment-sapi-create-payment-intent-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/store-payment">
+        <inSequence>
+            <sequence key="billing-payment-sapi-create-store-payment-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-sapi/api/billing-payment/retrive-payment/{quoteId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-retrive-payment-based-on-quoteId-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-sapi/api/billing-payment/fetch-payout/{quoteId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-fetch-payout-based-on-quoteId-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-sapi/api/billing-payment/payment_intents/{payment-intentId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-retrive-payment-intent-by-paymentIntentId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/payment/{paymentIntentId}/confirm">
+        <inSequence>
+            <sequence key="billing-payment-sapi-confirm-payment-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/claim-assessment-sapi/api/claim/{claimId}/loss-items">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-getLossItemsByClaimId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    
+    <resource methods="POST" uri-template="/claim-assessment-sapi/api/claim/{claimId}/loss-items">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-postLossItemsByClaimId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    
+    <resource methods="PATCH" uri-template="/claim-assessment-sapi/api/claim/{claimId}/loss-items">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-updateLossStatusByClaimId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    
+    <resource methods="GET" uri-template="/claim-assessment-sapi/api/claim/{claimId}/inspection-reports">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-get-inspection-reports-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    
+    <resource methods="POST" uri-template="/claim-assessment-sapi/api/claim/{claimId}/inspection-reports">
+        <inSequence>
+            <sequence key="claim-assessment-sapi-post-inspection-reports-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-assessment-sapi-fault-sequence" />
+            <respond />
+        </faultSequence>
+    </resource>
+
+<resource methods="POST" uri-template="/claim-assignment-sapi/api/adjusters">
+        <inSequence>
+            <sequence key="post-adjuster-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim-assignment-sapi/api/adjusters">
+        <inSequence>
+            <sequence key="get-all-adjuster-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>    
+    <resource methods="GET" uri-template="/claim-assignment-sapi/api/adjusters/{adjusterId}">
+        <inSequence>
+            <sequence key="get-specific-adjuster-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim-assignment-sapi/claim/{claimId}/assign">
+        <inSequence>
+            <sequence key="post-assignment-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim-assignment-sapi/claim/{claimId}/assign">
+        <inSequence>
+            <sequence key="get-assignment-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>          
+<resource methods="GET" uri-template="/claim-coverage-sapi/api/claim/{claimId}/coverages">
+        <inSequence>
+            <sequence key="claim-coverage-sapi-get-allCoverages-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-coverage-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim-coverage-sapi/api/claim/{policyNumber}/coverage">
+        <inSequence>
+            <sequence key="claim-coverage-sapi-createCoverage-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-coverage-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/claim-papi/claim">
+        <inSequence>
+            <sequence key="claim-papi-createClaimSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim-papi/claim/{claimId}">
+        <inSequence>
+            <sequence key="claim-papi-getClaimByClaimIdSequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim-papi/claim">
+        <inSequence>
+            <sequence key="claim-papi-getAllClaimsSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+
+    <resource methods="PATCH" uri-template="/claim-papi/claim/{claimId}/accept">
+        <inSequence>
+            <sequence key="claim-papi-acceptClaimByClaimIdSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+
+    <resource methods="PATCH" uri-template="/claim-papi/claim/{claimId}/reject">
+        <inSequence>
+            <sequence key="claim-papi-rejectClaimByClaimIdSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim-papi/claim/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="claim-papi-getClaimBypolicyHolderIdSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim-papi/claim/{claimId}/validate">
+        <inSequence>
+            <sequence key="claim-papi-validateClaimByClaimIdSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+
+    
+    <resource methods="GET" uri-template="/claim-papi/api/claim/{claimId}/reserves">
+        <inSequence>
+            <sequence key="claim-papi-getReserve-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+
+    <resource methods="PATCH" uri-template="/claim-papi/api/claim/{claimId}/reserves">
+        <inSequence>
+            <sequence key="claim-papi-updateReserve-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+
+    <resource methods="POST" uri-template="/claim-papi/api/claim/{claimId}/reserves">
+        <inSequence>
+            <sequence key="claim-papi-postReserve-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+
+    
+    <resource methods="GET" uri-template="/claim-papi/api/claim/{claimId}/loss-items">
+        <inSequence>
+            <sequence key="claim-papi-getLossItemsByClaimId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+
+    
+    <resource methods="GET" uri-template="/claim-papi/claim/{claimId}/inspection-reports">
+        <inSequence>
+            <sequence key="claim-papi-get-inspection-reports-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence" />
+            <respond />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim-papi/claim/{claimId}/assign">
+        <inSequence>
+            <sequence key="get-assignment-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim-papi/claim/{claimId}/fraud-check">
+        <inSequence>
+            <sequence key="claim-papi-fraudCheck-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim-papi/claim/{claimId}/inspection-reports">
+        <inSequence>
+            <sequence key="claim-papi-create-loss-inspection-report-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/claim-payment-papi/api/payment">
+        <inSequence>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>start</message>
+            </log>
+            <sequence key="claim-payment-papi-initiate-payment-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-payment-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/claim-payment-sapi/api/payment/store/transaction">
+        <inSequence>
+            <sequence key="claim-payment-sapi-storeTransaction-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim-payment-sapi/api/payment/retrieve/claimsPaymentDetails">
+        <inSequence>
+            <sequence key="claim-payment-sapi-getAllClaimsPayments-sequence" />
+            <respond />
+        </inSequence>
+    </resource>
+
+   
+    <resource methods="GET" uri-template="/claim-payment-sapi/api/payment/retrieve/{transactionId}">
+        <inSequence>
+            <sequence key="claim-payment-sapi-getTransaction-sequence" />
+            <respond />
+        </inSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim-payment-sapi/api/payment/retrive/{paymentId}">
+        <inSequence>
+            <sequence key="claim-payment-sapi-paymentRetrive-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+        <resource methods="POST" uri-template="/claim-payment-sapi/api/payment/payout">
+        <inSequence>
+            <sequence key="claim-payment-sapi-create-payout-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+        <resource methods="POST" uri-template="/claim-payment-sapi/api/payment/token">
+        <inSequence>
+            <sequence key="claim-payment-sapi-create-token-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/claim-sapi/api/claim/{claimId}">
+        <inSequence>
+            <sequence key="claim-sapi-getClaimByClaimIdSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim-sapi/api/claim">
+        <inSequence>
+            <sequence key="claim-sapi-createClaimSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim-sapi/api/claim">
+        <inSequence>
+            <sequence key="claim-sapi-getAllClaimsSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/claim-sapi/api/claim/{claimId}/reject">
+        <inSequence>
+            <sequence key="claim-sapi-rejectClaimByClaimIdSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/claim-sapi/api/claim/{claimId}/accept">
+        <inSequence>
+            <sequence key="claim-sapi-acceptClaimByClaimIdSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/claim-sapi/api/claim/settlement">
+        <inSequence>
+            <sequence key="claim-sapi-claimSettlementSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim-sapi/api/claim/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="claim-sapi-getClaimBypolicyHolderIdSequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/document-sapi/api/document/{documentId}">
+        <inSequence>
+            <sequence key="get-document-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/document-sapi/api/document">
+        <inSequence>
+            <sequence key="create-document-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/document-sapi/api/document/{documentId}">
+        <inSequence>
+            <sequence key="patch-document-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>        
+<resource methods="POST" uri-template="/endorsement-sapi/policies/{policyId}/endorsements">
+        <inSequence>
+            <sequence key="endorsement-sapi-create-endorsement-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/endorsement-sapi/api/policies/{policyId}/endorsements">
+        <inSequence>
+            <sequence key="endorsement-sapi-get-all-endorsements-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/endorsement-sapi/api/endorsements/{endorsementId}/validate">
+        <inSequence>
+            <sequence key="endorsement-sapi-validate-endorsement-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/endorsement-sapi/api/endorsements/{endorsementId}">
+        <inSequence>
+            <sequence key="endorsement-sapi-get-endorsement-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+     <resource methods="PATCH" uri-template="/endorsement-sapi/endorsements/{endorsementId}/accept">
+        <inSequence>
+            <sequence key="endorsement-sapi-accept-endorsement-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/endorsement-sapi/api/endorsements/{endorsementId}/issue">
+        <inSequence>
+            <sequence key="endorsement-sapi-issue-endorsement-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/endorsement-sapi/endorsements/{endorsementId}/discard">
+        <inSequence>
+            <sequence key="endorsement-sapi-discard-endorsement-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/finance-papi-api/treasury/transactions/{treasuryAccountId}">
+        <inSequence>
+            <property name="treasuryAccountId" expression="get-property('uri.var.treasuryAccountId')" scope="default" />
+            <sequence key="get-treasurydata-by-treasuryAccountIdSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/fraud-evaluation-sapi/api/claim/{claimId}/fraud-check">
+        <inSequence>
+            <sequence key="fraud-evaluation-sapi-create-fraud-check-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="fraud-evaluation-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/general-ledger-sapi/api/entries">
+        <inSequence>
+            <sequence key="general-ledger-sapi-create-GL-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/general-ledger-sapi/api/entries/quotes/{quoteId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-get-GL-by-quoteId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/general-ledger-sapi/api/entries/quotes/{quoteId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-update-GL-by-quoteId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/general-ledger-sapi/api/entries/claims/{claimId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-get-GL-by-claimId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/general-ledger-sapi/api/entries/claims/{claimId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-update-GL-by-claimId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/invoice-sapi/api/invoices/{invoiceId}">
+        <inSequence>
+            <sequence key="invoice-sapi-get-invoice-by-invoiceId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/invoice-sapi/api/invoices">
+        <inSequence>
+            <sequence key="invoice-sapi-create-invoice-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/invoice-sapi/api/{invoiceId}/mark-paid">
+        <inSequence>
+            <sequence key="invoice-sapi-update-mark-paid-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/invoice-sapi/api/taxes/rates/{state}">
+        <inSequence>
+            <sequence key="invoice-sapi-get-tax-rate-by-state-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/invoice-sapi/api/invoices/fetch-all/{quoteId}">
+        <inSequence>
+            <sequence key="invoice-sapi-get-all-invoices-by-quoteId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/payable-sapi/payables">
+        <inSequence>
+            <sequence key="post-payable-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/payable-sapi/payables/{claimId}">
+        <inSequence>
+            <sequence key="get-payable-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/payable-sapi/payables/{claimId}">
+        <inSequence>
+            <sequence key="patch-payable-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>        
+<resource methods="GET" uri-template="/policy-admin-papi/api/{policyNumber}">
+        <inSequence>
+            <sequence key="get-specific-policy-admin-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/api/policy/{policyNumber}/issuance">
+        <inSequence>
+            <sequence key="patch-issue-specific-policy-admin-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/api/policy/{policyNumber}/cancellation">
+        <inSequence>
+            <sequence key="patch-cancel-specific-policy-admin-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/api/all/policy">
+        <inSequence>
+            <sequence key="get-all-policies-admin-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/api/policyholder/{policyHolderId}/policies">
+        <inSequence>
+            <sequence key="get-policies-against-policyHolder-admin-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/api/document/{documentId}">
+        <inSequence>
+            <sequence key="poicy-admin-papi-getdocument-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-admin-papi/api/policies/{policyNumber}/documents">
+        <inSequence>
+            <sequence key="policy-admin-papi-createpolicy-document-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-admin-papi/api/quotes/documents">
+        <inSequence>
+            <sequence key="policy-admin-papi-createquote-document-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-admin-papi/policies/{policyId}/endorsements">
+         <inSequence>
+            <sequence key="policy-admin-papi-create-endorsement-sequence" />
+        </inSequence>
+         <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-admin-papi/api/quote">
+        <inSequence>
+            <sequence key="policy-admin-papi-create-quote-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/api/quote/{quoteId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-quote-by-quoteId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/api/quote/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-quote-by-policyHolderId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/api/quote/{quoteId}/accept">
+        <inSequence>
+            <sequence key="policy-admin-papi-accept-quote-by-quoteId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/api/quote/{quoteId}/discard">
+        <inSequence>
+            <sequence key="policy-admin-papi-discard-quote-by-quoteId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/api/quote/{quoteId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-update-quote-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource> 
+     <resource methods="PATCH" uri-template="/policy-admin-papi/endorsement/{endorsementId}/accept">
+         <inSequence>
+            <sequence key="policy-admin-papi-accept-endorsement-sequence" />
+        </inSequence>
+         <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource> 
+    <resource methods="GET" uri-template="/policy-admin-papi/api/policies/{policyId}/endorsements">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-all-endorsements-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-admin-papi/api/endorsements/{endorsementId}/validate">
+        <inSequence>
+            <sequence key="policy-admin-papi-validate-endorsement-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/api/endorsements/{endorsementId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-endorsement-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+     <resource methods="POST" uri-template="/policy-admin-papi/api/policies/{policyId}/reinstatement">
+        <inSequence>
+            <sequence key="policy-admin-papi-create-reInstatement-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/api/policies/{policyId}/reinstatement/accept">
+        <inSequence>
+            <sequence key="policy-admin-papi-accept-reInstatement-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/api/policies/reinstatement/{reInstatementId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-reInstatement-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-admin-papi/policies/{policyNumber}/renewal">
+        <inSequence>
+            <sequence key="post-policy-renewal-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/renewals/{renewalId}">
+        <inSequence>
+            <sequence key="get-policy-renewal-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/renewals/{renewalId}">
+        <inSequence>
+            <sequence key="patch-policy-renewal-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>   
+     <resource methods="PATCH" uri-template="/policy-admin-papi/endorsement/{endorsementId}/discard">
+         <inSequence>
+            <sequence key="policy-admin-papi-discard-endorsement-sequence" />
+        </inSequence>
+         <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/api/endorsements/{endorsementId}/issue">
+        <inSequence>
+            <sequence key="policy-admin-papi-issue-endorsement-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/api/policies/{policyId}/reinstatement/payment">
+        <inSequence>
+            <sequence key="policy-admin-papi-acceptPayment-reInstatement-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/fetch-vehicles/{quoteId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-vehicles-by-quoteId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/vehicles/{insurableObjectIdentifier}">
+        <inSequence>
+            <sequence key="policy-admin-papi-get-vehicles-by-insurableObjectIdentifier-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="policy-admin-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-admin-papi/vehicles">
+        <inSequence>
+            <sequence key="policy-admin-papi-create-vehicle-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/api/drivers/{driverId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-retrieve-driver-by-driverId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-admin-papi/api/quote/{quoteId}/drivers">
+        <inSequence>
+            <sequence key="policy-admin-papi-retrieve-driver-by-quoteId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-admin-papi/api/drivers/{driverId}">
+        <inSequence>
+            <sequence key="policy-admin-papi-update-driver-by-driverId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-admin-papi/api/drivers">
+        <inSequence>
+            <sequence key="policy-admin-papi-add-driver-details-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>    
+<resource methods="GET" uri-template="/policy-document-sapi/api/document/{documentId}">
+        <inSequence>
+            <sequence key="policy-sapi-getdocument-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-document-sapi/api/policies/{policyNumber}/documents">
+        <inSequence>
+            <sequence key="policy-sapi-createpolicy-document-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-document-sapi/api/quotes/documents">
+        <inSequence>
+            <sequence key="policy-sapi-createquote-document-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/policy-renewal-sapi/policies/{policyNumber}/renewal">
+        <inSequence>
+            <sequence key="post-policy-renewal-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-renewal-sapi/renewals/{renewalId}">
+        <inSequence>
+            <sequence key="get-policy-renewal-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-renewal-sapi/renewals/{renewalId}">
+        <inSequence>
+            <sequence key="patch-policy-renewal-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>        
+<resource methods="GET" uri-template="/policy-sapi/api/{policyId}">
+        <inSequence>
+            <sequence key="get-specific-policy-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policy-sapi/api/policy">
+        <inSequence>
+            <sequence key="post-specific-policy-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-sapi/api/policy/{policyNumber}/issuance">
+        <inSequence>
+            <sequence key="patch-issue-specific-policy-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policy-sapi/api/policy/{policyNumber}/cancellation">
+        <inSequence>
+            <sequence key="patch-cancel-specific-policy-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policy-sapi/api/all/policy">
+        <inSequence>
+            <sequence key="get-all-policy-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/policyHolder-papi/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="get-specific-policyHolder-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policyHolder-papi/api/policyHolder">
+        <inSequence>
+            <sequence key="post-specific-policyHolder-papi-sequence" description="create policy Holder" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policyHolder-papi/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="patch-specific-policyHolder-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policyHolder-papi/api/policyholder/{policyHolderId}/policies">
+        <inSequence>
+            <sequence key="get-policies-against-policyHolder-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policyHolder-papi/api/all/policyHolder">
+        <inSequence>
+            <sequence key="get-all-policyHolder-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>     
+<resource methods="GET" uri-template="/policyHolder-sapi/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="get-specific-policyHolder-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/policyHolder-sapi/api/policyHolder">
+        <inSequence>
+            <sequence key="post-specific-policyHolder-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/policyHolder-sapi/api/{policyHolderId}">
+        <inSequence>
+            <sequence key="patch-specific-policyHolder-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policyHolder-sapi/api/policyholder/{policyHolderId}/policies">
+        <inSequence>
+            <sequence key="get-policies-against-policyHolder-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/policyHolder-sapi/api/all/policyHolder">
+        <inSequence>
+            <sequence key="get-all-policyHolder-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>    
+<resource methods="GET" uri-template="/quote-sapi/api/quote/{quoteId}">
+        <inSequence>
+            <sequence key="quote-sapi-get-quote-by-quoteId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" description="quote-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/quote-sapi/api/quote/{quoteId}/accept">
+        <inSequence>
+            <sequence key="quote-sapi-patch-acceptQuote-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" description="quote-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/quote-sapi/api/quote/{quoteId}/discard">
+        <inSequence>
+            <sequence key="quote-sapi-patch-discardQuote-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" description="quote-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/quote-sapi/api/quote">
+        <inSequence>
+            <sequence key="quote-sapi-create-quote-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/quote-sapi/api/quote/policyHolder/{policyHolderId}">
+        <inSequence>
+            <sequence key="quote-sapi-get-quote-by-policyHolderId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/quote-sapi/api/quote/{quoteId}/coverages">
+        <inSequence>
+            <sequence key="quote-sapi-create-coverage-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/quote-sapi/api/quote/{quoteId}/coverages">
+        <inSequence>
+            <sequence key="quote-sapi-get-coverage-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/quote-sapi/api/quote/{quoteId}">
+        <inSequence>
+            <sequence key="quote-sapi-update-quote-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/quote-sapi/api/products/{productId}/coverages">
+        <inSequence>
+            <sequence key="quote-sapi-get-allCoverages-By-ProductCode-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="quote-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/receivables-sapi/api/receivables">
+        <inSequence>
+            <sequence key="receivables-sapi-createReceivables-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/receivables-sapi/api/update/receivables/{quoteId}">
+        <inSequence>
+            <sequence key="receivables-sapi-updateReceivablesByQuoteId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/receivables-sapi/api/receivables/{quoteId}">
+        <inSequence>
+            <sequence key="receivables-sapi-fetchReceivablesByQuoteId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/refund-sapi/api/refunds/retrieve/cancelPolicyDetails">
+        <inSequence>
+            <sequence key="get-all-cancelled-policies-refund-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/refund-sapi/api/refunds/create">
+        <inSequence>
+            <sequence key="create-refund-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/refund-sapi/api/refunds/store-refund">
+        <inSequence>
+            <sequence key="store-refund-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>  
+    <resource methods="GET" uri-template="/refund-sapi/api/refunds/retrieve/{refundId}">
+        <inSequence>
+            <sequence key="fetch-refund-by-refundId-refund-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>          
+<resource methods="GET" uri-template="/reinstatement-sapi/api/policies/reinstatement/{reinstatementId}">
+        <inSequence>
+            <sequence key="reinstatement-sapi-getReinstatement-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/reinstatement-sapi/api/policies/{policyId}/reinstatement/accept">
+        <inSequence>
+            <sequence key="reinstatement-sapi-acceptReinstatement-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/reinstatement-sapi/api/policies/{policyId}/reinstatement">
+        <inSequence>
+            <sequence key="reinstatement-sapi-createReinstatement-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/reinstatement-sapi/api/policies/{policyId}/reinstatement/payment">
+        <inSequence>
+            <sequence key="reinstatement-sapi-acceptReinstatementPayment-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/reserve-management-sapi/api/claim/{claimId}/reserves">
+        <inSequence>
+            <sequence key="reserve-management-sapi-get-reserve-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/reserve-management-sapi/api/claim/{claimId}/reserves">
+        <inSequence>
+            <sequence key="reserve-management-sapi-createReserve-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/reserve-management-sapi/api/claim/{claimId}/reserves">
+        <inSequence>
+            <sequence key="reserve-management-sapi-updateReserve-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/socotra-policy-api/api/policy/{policyId}">
+        <inSequence>
+            <sequence key="socotra-policy-sapi-getPolicyBy-policyId-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="socotra-policy-sapi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+<resource methods="PATCH" uri-template="/treasury-sapi-api/treasury/transactions/policy">
+        <inSequence>
+            <sequence key="treasury-transactions-for-policySequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/treasury-sapi-api/treasury/transactions/claims">
+        <inSequence>
+            <sequence key="treasury-transactions-for-claimSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/treasury-sapi-api/treasury/transactions/{treasuryAccountId}">
+        <inSequence>
+            <property name="treasuryAccountId" expression="get-property('uri.var.treasuryAccountId')" scope="default" />
+            <sequence key="treasury-transactions-balanceSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/user-papi/signup">
+        <inSequence>
+            <sequence key="post-user-signup-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/user-papi/login">
+        <inSequence>
+            <sequence key="post-user-login-papi-sequence" />
+            <respond /> 
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/user-sapi/signup">
+        <inSequence>
+            <sequence key="post-user-signup-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/user-sapi/login">
+        <inSequence>
+            <sequence key="post-user-login-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

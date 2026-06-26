@@ -1,0 +1,1018 @@
+openapi: 3.0.1
+info:
+  title: Exasure API
+  version: 1.0.0
+paths:
+  /agent-compensation-sapi-api/agent-compensations:
+    post:
+      responses:
+        '200':
+          description: OK
+    get:
+      responses:
+        '200':
+          description: OK
+  /agent-compensation-sapi-api/agents/{agentId}/statements/generate:
+    post:
+      responses:
+        '200':
+          description: OK
+  /agent-compensation-sapi-api/agents/{quoteId}/agent-statements/quote:
+    get:
+      responses:
+        '200':
+          description: OK
+  /agent-compensation-sapi-api/agents/{agentId}/statements:
+    get:
+      responses:
+        '200':
+          description: OK
+  /agent-compensation-sapi-api/agents/fetch-all-agentStatement:
+    get:
+      responses:
+        '200':
+          description: OK
+  /agent-compensation-sapi-api/agents/{quoteId}/agent-statements/status:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /audit-trail-sapi/audit-trail:
+    post:
+      responses:
+        '200':
+          description: OK
+  /audit-trail-sapi/audit-trail/claim/{claimId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /audit-trail-sapi/audit-trail/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /audit-trail-sapi/update/audit-trail/claim/{claimId}:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /audit-trail-sapi/update/audit-trail/{quoteId}:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/{policyHolderId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/all/policyHolder:
+    get:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/policyHolder:
+    post:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/policyAPI/{policyId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/policy:
+    post:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/policy/{policyId}/issuance:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/policy/{policyId}/cancellation:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/all/policy:
+    get:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/policyholder/{policyHolderId}/policies:
+    get:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/quote/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/quote/{quoteId}/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/quote/{quoteId}/discard:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/quote:
+    post:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/api/policyHolder/{policyHolderId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/signup:
+    post:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/login:
+    post:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/claim:
+    get:
+      responses:
+        '200':
+          description: OK
+    post:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/claim/{claimId}/reject:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/claim/{claimId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/claim/{claimId}/validate:
+    get:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/claim/{claimId}/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /b2c-xapi/claim/policyHolder/{policyHolderId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-account-sapi/api/billing-accounts:
+    post:
+      responses:
+        '200':
+          description: OK
+  /billing-account-sapi/api/billing-accounts/{billingAccountId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-papi/api/refund:
+    post:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-papi/api/billing-payment/agents/{quoteId}/agent-statements/quote:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-papi/api/agent:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-papi/api/billing-payment/agents/{agentId}/statements:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-papi/api/mail:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-papi/api/billing-payment/billing:
+    post:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-papi/api/billing-payment/invoices/{invoiceId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-papi/api/billing-payment/invoices/fetch-all/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-sapi/api/billing-payment/store-payout:
+    post:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-sapi/api/billing-payment/retrive-payout/{payoutId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-sapi/api/billing-payment/payout:
+    post:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-sapi/api/billing-payment/payment-intent:
+    post:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-sapi/api/billing-payment/store-payment:
+    post:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-sapi/api/billing-payment/retrive-payment/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-sapi/api/billing-payment/fetch-payout/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-sapi/api/billing-payment/payment_intents/{payment-intentId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /billing-payment-sapi/api/billing-payment/payment/{paymentIntentId}/confirm:
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-assessment-sapi/api/claim/{claimId}/loss-items:
+    get:
+      responses:
+        '200':
+          description: OK
+    post:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /claim-assessment-sapi/api/claim/{claimId}/inspection-reports:
+    get:
+      responses:
+        '200':
+          description: OK
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-assignment-sapi/api/adjusters:
+    post:
+      responses:
+        '200':
+          description: OK
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-assignment-sapi/api/adjusters/{adjusterId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-assignment-sapi/claim/{claimId}/assign:
+    post:
+      responses:
+        '200':
+          description: OK
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-coverage-sapi/api/claim/{claimId}/coverages:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-coverage-sapi/api/claim/{policyNumber}/coverage:
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/claim:
+    post:
+      responses:
+        '200':
+          description: OK
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/claim/{claimId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/claim/{claimId}/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/claim/{claimId}/reject:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/claim/policyHolder/{policyHolderId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/claim/{claimId}/validate:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/api/claim/{claimId}/reserves:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/api/claim/{claimId}/loss-items:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/claim/{claimId}/inspection-reports:
+    get:
+      responses:
+        '200':
+          description: OK
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/claim/{claimId}/assign:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-papi/claim/{claimId}/fraud-check:
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-payment-papi/api/payment:
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-payment-sapi/api/payment/store/transaction:
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-payment-sapi/api/payment/retrieve/claimsPaymentDetails:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-payment-sapi/api/payment/retrieve/{transactionId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-payment-sapi/api/payment/retrive/{paymentId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-payment-sapi/api/payment/payout:
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-payment-sapi/api/payment/token:
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-sapi/api/claim/{claimId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-sapi/api/claim:
+    post:
+      responses:
+        '200':
+          description: OK
+    get:
+      responses:
+        '200':
+          description: OK
+  /claim-sapi/api/claim/{claimId}/reject:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /claim-sapi/api/claim/{claimId}/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /claim-sapi/api/claim/settlement:
+    post:
+      responses:
+        '200':
+          description: OK
+  /claim-sapi/api/claim/policyHolder/{policyHolderId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /document-sapi/api/document/{documentId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /document-sapi/api/document:
+    post:
+      responses:
+        '200':
+          description: OK
+  /endorsement-sapi/policies/{policyId}/endorsements:
+    post:
+      responses:
+        '200':
+          description: OK
+  /endorsement-sapi/api/policies/{policyId}/endorsements:
+    get:
+      responses:
+        '200':
+          description: OK
+  /endorsement-sapi/api/endorsements/{endorsementId}/validate:
+    post:
+      responses:
+        '200':
+          description: OK
+  /endorsement-sapi/api/endorsements/{endorsementId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /endorsement-sapi/endorsements/{endorsementId}/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /endorsement-sapi/api/endorsements/{endorsementId}/issue:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /endorsement-sapi/endorsements/{endorsementId}/discard:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /finance-papi-api/treasury/transactions/{treasuryAccountId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /fraud-evaluation-sapi/api/claim/{claimId}/fraud-check:
+    post:
+      responses:
+        '200':
+          description: OK
+  /general-ledger-sapi/api/entries:
+    post:
+      responses:
+        '200':
+          description: OK
+  /general-ledger-sapi/api/entries/quotes/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /general-ledger-sapi/api/entries/claims/{claimId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /invoice-sapi/api/invoices/{invoiceId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /invoice-sapi/api/invoices:
+    post:
+      responses:
+        '200':
+          description: OK
+  /invoice-sapi/api/{invoiceId}/mark-paid:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /invoice-sapi/api/taxes/rates/{state}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /invoice-sapi/api/invoices/fetch-all/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /payable-sapi/payables:
+    post:
+      responses:
+        '200':
+          description: OK
+  /payable-sapi/payables/{claimId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/{policyNumber}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/policy/{policyNumber}/issuance:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/policy/{policyNumber}/cancellation:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/all/policy:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/policyholder/{policyHolderId}/policies:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/document/{documentId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/policies/{policyNumber}/documents:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/quotes/documents:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/policies/{policyId}/endorsements:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/quote:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/quote/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/quote/policyHolder/{policyHolderId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/quote/{quoteId}/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/quote/{quoteId}/discard:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/endorsement/{endorsementId}/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/policies/{policyId}/endorsements:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/endorsements/{endorsementId}/validate:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/endorsements/{endorsementId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/policies/{policyId}/reinstatement:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/policies/{policyId}/reinstatement/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/policies/reinstatement/{reInstatementId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/policies/{policyNumber}/renewal:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/renewals/{renewalId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/endorsement/{endorsementId}/discard:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/endorsements/{endorsementId}/issue:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/policies/{policyId}/reinstatement/payment:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/fetch-vehicles/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/vehicles/{insurableObjectIdentifier}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/vehicles:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/drivers/{driverId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/quote/{quoteId}/drivers:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-admin-papi/api/drivers:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-document-sapi/api/document/{documentId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-document-sapi/api/policies/{policyNumber}/documents:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-document-sapi/api/quotes/documents:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-renewal-sapi/policies/{policyNumber}/renewal:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-renewal-sapi/renewals/{renewalId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-sapi/api/{policyId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policy-sapi/api/policy:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policy-sapi/api/policy/{policyNumber}/issuance:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-sapi/api/policy/{policyNumber}/cancellation:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policy-sapi/api/all/policy:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policyHolder-papi/api/{policyHolderId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policyHolder-papi/api/policyHolder:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policyHolder-papi/api/policyholder/{policyHolderId}/policies:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policyHolder-papi/api/all/policyHolder:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policyHolder-sapi/api/{policyHolderId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /policyHolder-sapi/api/policyHolder:
+    post:
+      responses:
+        '200':
+          description: OK
+  /policyHolder-sapi/api/policyholder/{policyHolderId}/policies:
+    get:
+      responses:
+        '200':
+          description: OK
+  /policyHolder-sapi/api/all/policyHolder:
+    get:
+      responses:
+        '200':
+          description: OK
+  /quote-sapi/api/quote/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /quote-sapi/api/quote/{quoteId}/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /quote-sapi/api/quote/{quoteId}/discard:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /quote-sapi/api/quote:
+    post:
+      responses:
+        '200':
+          description: OK
+  /quote-sapi/api/quote/policyHolder/{policyHolderId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /quote-sapi/api/quote/{quoteId}/coverages:
+    post:
+      responses:
+        '200':
+          description: OK
+    get:
+      responses:
+        '200':
+          description: OK
+  /quote-sapi/api/products/{productId}/coverages:
+    get:
+      responses:
+        '200':
+          description: OK
+  /receivables-sapi/api/receivables:
+    post:
+      responses:
+        '200':
+          description: OK
+  /receivables-sapi/api/update/receivables/{quoteId}:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /receivables-sapi/api/receivables/{quoteId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /refund-sapi/api/refunds/retrieve/cancelPolicyDetails:
+    get:
+      responses:
+        '200':
+          description: OK
+  /refund-sapi/api/refunds/create:
+    post:
+      responses:
+        '200':
+          description: OK
+  /refund-sapi/api/refunds/store-refund:
+    post:
+      responses:
+        '200':
+          description: OK
+  /refund-sapi/api/refunds/retrieve/{refundId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /reinstatement-sapi/api/policies/reinstatement/{reinstatementId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /reinstatement-sapi/api/policies/{policyId}/reinstatement/accept:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /reinstatement-sapi/api/policies/{policyId}/reinstatement:
+    post:
+      responses:
+        '200':
+          description: OK
+  /reinstatement-sapi/api/policies/{policyId}/reinstatement/payment:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /reserve-management-sapi/api/claim/{claimId}/reserves:
+    get:
+      responses:
+        '200':
+          description: OK
+    post:
+      responses:
+        '200':
+          description: OK
+    patch:
+      responses:
+        '200':
+          description: OK
+  /socotra-policy-api/api/policy/{policyId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /treasury-sapi-api/treasury/transactions/policy:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /treasury-sapi-api/treasury/transactions/claims:
+    patch:
+      responses:
+        '200':
+          description: OK
+  /treasury-sapi-api/treasury/transactions/{treasuryAccountId}:
+    get:
+      responses:
+        '200':
+          description: OK
+  /user-papi/signup:
+    post:
+      responses:
+        '200':
+          description: OK
+  /user-papi/login:
+    post:
+      responses:
+        '200':
+          description: OK
+  /user-sapi/signup:
+    post:
+      responses:
+        '200':
+          description: OK
+  /user-sapi/login:
+    post:
+      responses:
+        '200':
+          description: OK
