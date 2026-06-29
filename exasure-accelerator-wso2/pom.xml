@@ -5,7 +5,7 @@
     <groupId>com.microintegrator.projects</groupId>
     <artifactId>exasure-accelerator-wso2</artifactId>
     <version>1.0.0</version>
-    <packaging>pom</packaging>
+    <packaging>jar</packaging>
     <name>exasure-accelerator-wso2</name>
     <description>exasure-accelerator-wso2</description>
     <repositories>
