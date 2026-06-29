@@ -109,6 +109,11 @@
               <version>3.5.0</version>
               <configuration>
                 <skipIfEmpty>true</skipIfEmpty>
+                <archive>
+                  <manifestEntries>
+                    <DynamicImport-Package>*</DynamicImport-Package>
+                  </manifestEntries>
+                </archive>
               </configuration>
               <executions>
                 <execution>
