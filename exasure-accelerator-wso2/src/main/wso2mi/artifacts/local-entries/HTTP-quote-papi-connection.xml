@@ -2,7 +2,7 @@
 <localEntry key="HTTP-quote-papi-connection" xmlns="http://ws.apache.org/ns/synapse">
   <http.init>
     <connectionType>HTTP</connectionType>
-    <baseUrl>http://localhost:8290/quote-papi</baseUrl>
+    <baseUrl>https://e33ca7c6-0ea6-4e62-9686-4dd4eb69c8c9-dev.e1-us-east-azure.choreoapis.dev/exasure-accelerator-wso2/exasure-accelerator-wso2/v1.0/quote-papi</baseUrl>
     <authType>None</authType>
     <timeoutAction>Never</timeoutAction>
     <retryCount>0</retryCount>
