@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <endpoint name="policyHolder-sapi-restEndpoint" xmlns="http://ws.apache.org/ns/synapse">
-    <address uri="https://e33ca7c6-0ea6-4e62-9686-4dd4eb69c8c9-dev.e1-us-east-azure.choreoapis.dev/exasure-accelerator-wso2/exasure-accelerator-wso2/v1.0/policyHolder-sapi">
+    <address uri="http://localhost:8290/exasure-api/policyHolder-sapi">
         <suspendOnFailure>
             <initialDuration>-1</initialDuration>
             <progressionFactor>1</progressionFactor>

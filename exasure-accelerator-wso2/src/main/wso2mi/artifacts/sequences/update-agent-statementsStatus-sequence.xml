@@ -33,7 +33,7 @@
     <call blocking="true">
         <endpoint>
             <http method="patch"
-                  uri-template="https://e33ca7c6-0ea6-4e62-9686-4dd4eb69c8c9-dev.e1-us-east-azure.choreoapis.dev/exasure-accelerator-wso2/exasure-accelerator-wso2/v1.0/agent-compensation-sapi-api/agents/{uri.var.quoteId}/agent-statements/status"/>
+                  uri-template="http://localhost:8290/exasure-api/agent-compensation-sapi-api/agents/{uri.var.quoteId}/agent-statements/status"/>
         </endpoint>
     </call>
 
