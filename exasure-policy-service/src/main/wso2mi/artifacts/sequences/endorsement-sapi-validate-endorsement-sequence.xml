@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="endorsement-sapi-validate-endorsement-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="endorsementId" expression="get-property('uri.var.endorsementId')"/>
+        <property name="requestPayload" expression="json-eval($)" type="STRING"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-validate-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started endorsement-sapi-validate-endorsement-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;endorsementId&quot;:&quot;', $ctx:endorsementId, '&quot;}')"/>
+    <property name="mongoSort" value="{&quot;policyVersion.versionNumber&quot;:-1}" type="STRING"/>
+    <filter source="json-eval($.pricing.totalPremium)" regex="^(?!0$).*">
+    <then>
+        <payloadFactory media-type="json">
+            <format>
+                    {
+                    "$set": {
+                    "endorsementStatusCode": "$1",
+                    "pricing": $2
+                    }
+                    }
+                </format>
+            <args>
+                    <arg evaluator="json" expression="$ctx:requestPayload.endorsementStatusCode"/>
+                    <arg evaluator="json" expression="$ctx:requestPayload.pricing"/>
+                </args>
+            </payloadFactory>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>Pricing updated++++++++++++++++++++++++++++++++++</message>
+            </log>
+        </then>
+    <else>
+        <payloadFactory media-type="json">
+            <format>
+                    {
+                    "$set": {
+                    "endorsementStatusCode": "$1"
+                    }
+                    }
+                </format>
+            <args>
+                    <arg evaluator="json" expression="$ctx:requestPayload.endorsementStatusCode"/>
+                </args>
+            </payloadFactory>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>Pricing not updated++++++++++++++++++++++++++++++++++</message>
+            </log>
+        </else>
+</filter>
+<property name="mongoUpdate" expression="json-eval($)" type="STRING"/>
+<mongodb.updateOne configKey="MongoDB-connection-endorsement">
+    <collection>endorsement</collection>
+    <query>{$ctx:mongoQuery}</query>
+    <update>{$ctx:mongoUpdate}</update>
+    <upsert>false</upsert>
+    <responseVariable>mongodb_updateOne_1</responseVariable>
+    <overwriteBody>true</overwriteBody>
+</mongodb.updateOne>
+<filter source="json-eval($.modifiedCount)" regex="^(?!0$).*">
+    <then>
+<mongodb.find configKey="MongoDB-connection-endorsement">
+    <collection>endorsement</collection>
+    <query>{$ctx:mongoQuery}</query>
+    <projection></projection>
+    <collation></collation>
+    <sort>{$ctx:mongoSort}</sort>
+    <limit>1</limit>
+    <responseVariable>mongodb_find_1</responseVariable>
+    <overwriteBody>true</overwriteBody>
+</mongodb.find>
+<property name="endorsementResponse" scope="default" expression="json-eval($.data)"/>
+<log level="custom">
+    <property name="ENDORSEMENT_RESPONSE_PAYLOAD+++++++++++++" expression="json-eval($ctx:endorsementResponse[0])"/>
+</log>
+<log category="INFO" logMessageID="false" logFullPayload="false" description="MongoUpdateStatus">
+  <message>Document updated++++++++++++++++++++++</message>
+</log>
+<property name="isFound" expression="json-eval($.found)" scope="default"/>
+<filter xpath="$ctx:isFound = 'true'">
+<then>
+<property name="policyNumber" expression="json-eval($ctx:endorsementResponse[0].policyNumber)"/>
+<property name="mongoUpdateQuery" type="STRING" expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:policyNumber, '&quot;}')"/>
+<script language="js"><![CDATA[
+var res = JSON.parse(mc.getProperty("endorsementResponse"));
+
+var obj = res[0];
+delete obj.policyNumber;
+
+var response = {
+  "$set": {
+      policyStatusCode: "ENDORSEMENT_VALIDATED",
+      endorsements: obj
+  }
+};
+
+mc.setProperty("endorsementFinalResponse", JSON.stringify(response));
+]]></script>
+<mongodb.updateOne configKey="MongoDB-connection-endorsement">
+    <collection>policies</collection>
+    <query>{$ctx:mongoUpdateQuery}</query>
+    <update>{$ctx:endorsementFinalResponse}</update>
+    <upsert>false</upsert>
+    <responseVariable>mongodb_updateOne_1</responseVariable>
+    <overwriteBody>true</overwriteBody>
+</mongodb.updateOne>
+<payloadFactory description="Response payload" media-type="json" template-type="Default">
+                        <format>
+                            {
+                            "policyNumber": "$1",
+                            "policyVersionIdentifier": "$2",
+                            "versionNumber": "$3",
+                            "assessmentTypeCode": "$4",
+                            "assessmentStatusCode": "PASSED",
+                            "decisionCode": "ACCEPT",
+                            "policyEvent": {
+                            "eventTypeCode": "$5",
+                            "eventDate": "$6"
+                            },
+                            "endorsementStatusCode": "$7",
+                            "message": "Endorsement validation successfull"
+                            }
+</format>
+<args>
+    <arg expression="json-eval($ctx:endorsementResponse[0].policyNumber)" evaluator="json"/>
+    <arg expression="json-eval($ctx:endorsementResponse[0].policyVersion.policyVersionIdentifier)" evaluator="json"/>
+    <arg expression="json-eval($ctx:endorsementResponse[0].policyVersion.versionNumber)" evaluator="json"/>
+    <arg expression="$ctx:requestPayload.assessmentTypeCode" evaluator="json"/>
+    <arg expression="$ctx:requestPayload.eventTypeCode" evaluator="json"/>
+    <arg expression="$ctx:requestPayload.eventDate" evaluator="json"/>
+    <arg expression="json-eval($ctx:endorsementResponse[0].endorsementStatusCode)" evaluator="json"/>
+</args>
+    </payloadFactory> 
+    </then>
+    <else>
+<propertyGroup description="error details">
+    <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+    <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+    <property value="endorsement not found  for the given endorsementId" name="ERROR_DETAIL" scope="default" type="STRING"/>
+</propertyGroup>
+<call-template description="Error Log" target="Common-Log-Template-V1">
+    <with-param name="service" value="endorsement-sapi"/>
+    <with-param name="sequence" value="endorsement-sapi-validate-endorsement-sequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+    <with-param name="status" value="ERROR"/>
+</call-template>
+<sequence key="endorsement-sapi-fault-sequence"/>
+    </else>
+    </filter>
+    </then>
+    <else>
+<payloadFactory media-type="json">
+    <format>$1</format>
+    <args>
+    <arg evaluator="json" expression="json-eval($)"/>
+    </args>
+</payloadFactory>
+<log category="INFO" logMessageID="false" logFullPayload="false" description="MongoUpdateStatus">
+<message>No document updated++++++++++++++++++++++</message>
+</log>
+</else>
+</filter>
+<property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-validate-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended endorsement-sapi-validate-endorsement-sequence"/>
+        <with-param name="status" value="End"/>
+    </call-template>
+</sequence>

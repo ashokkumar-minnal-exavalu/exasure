@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="reinstatement-sapi-createReinstatement-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="reinstatement-sapi"/>
+        <with-param name="sequence" value="reinstatement-sapi-createReinstatement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started reinstatement-sapi-createReinstatement-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="initPayload" scope="default" type="STRING" expression="json-eval($)"/>
+    <property name="policyId" expression="get-property('uri.var.policyId')"/>
+    <property name="updateQuery" expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:policyId, '&quot;}')"/>
+    <mongodb.findOne configKey="WSO2-Accelerator-DB">
+        <collection>policies</collection>
+        <query>{$ctx:updateQuery}</query>
+        <projection/>
+        <collation/>
+        <responseVariable>reinstatmentDetailsResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+    <log level="full">
+        <property name="STEP" value="LOG 1"/>
+    </log>
+    <filter source="json-eval($.found)" regex="true">
+        <then>
+            <!-- SUCCESS SCENARIO -->
+            <script language="js"><![CDATA[var response = mc.getPayloadJSON();
+
+// Get stored properties
+var initPayload = mc.getProperty("initPayload");
+var policyId = mc.getProperty("policyId");
+
+// Ensure initPayload is parsed if stored as string
+if (typeof initPayload === "string") {
+    initPayload = JSON.parse(initPayload);
+}
+
+// Ensure data object exists (your existing logic)
+if (response && response.data) {
+
+    var payload = response.data;
+
+    // Remove _id if present
+    if (payload._id) {
+        delete payload._id;
+    }
+
+    var result = {};
+
+
+    if (payload.policyStatusCode === "CANCELLED") {
+
+        if (payload.policyCancellationType === 
+            (initPayload.policyEvent ? initPayload.policyEvent.eventReasonCode : null)) {
+
+            var timestamp = new Date();
+            var formattedTimestamp =
+                timestamp.getFullYear().toString() +
+                ("0" + (timestamp.getMonth() + 1)).slice(-2) +
+                ("0" + timestamp.getDate()).slice(-2) +
+                ("0" + timestamp.getHours()).slice(-2) +
+                ("0" + timestamp.getMinutes()).slice(-2) +
+                ("0" + timestamp.getSeconds()).slice(-2) +
+                ("00" + timestamp.getMilliseconds()).slice(-3);
+
+            var totalPremium = payload.pricing && payload.pricing.totalPremium
+                ? Number(payload.pricing.totalPremium)
+                : 0;
+
+            result = {
+                policyNumber: policyId || "",
+                quoteId: payload.quote ? payload.quote.quoteId || "" : "",
+                reinstatementId: "RES-" + formattedTimestamp,
+                policyStatusCode: "REINSTATEMENT_REQUESTED",
+                policyEvent: {
+                    eventTypeCode: "REINSTATEMENT",
+                    eventDate: initPayload.policyEvent ? initPayload.policyEvent.eventDate || "" : "",
+                    eventReasonCode: initPayload.policyEvent ? initPayload.policyEvent.eventReasonCode || "" : "",
+                    eventReasonDescription: initPayload.policyEvent ? initPayload.policyEvent.eventReasonDescription || "" : ""
+                },
+                assessmentTypeCode: "REINSTATEMENT_EVALUATION",
+                assessmentStatusCode: "PENDING",
+                outstandingAmount: {
+                    amountValue: totalPremium + (totalPremium * 0.02),
+                    currencyCode: "USD"
+                },
+                reinstateTermStartDate: initPayload.reinstateTermStartDate || null,
+                reinstateTermEndDate: initPayload.reinstateTermEndDate || null,
+                status: "SUCCESS",
+                message: "Reinstatement request submitted successfully"
+            };
+
+        } else {
+
+            result = {
+                policyNumber: policyId || "",
+                quoteId: payload.quote ? payload.quote.quoteId || "" : "",
+                policyStatusCode: payload.policyStatusCode || "",
+                status: "FAILED",
+                message: "Reinstatement is not allowed. Policy cancellation type or event reason is not eligible for reinstatement."
+            };
+        }
+
+    } else {
+
+        result = {
+            policyNumber: policyId || "",
+            quoteId: payload.quote ? payload.quote.quoteId || "" : "",
+            policyStatusCode: payload.policyStatusCode,
+            status: "FAILED",
+            message: "Reinstatement request cannot be processed because the policy is not in CANCELLED status."
+        };
+    }
+
+    // Set final payload
+   mc.setPayloadJSON(result);
+
+// Store the same object as a property
+mc.setProperty("response", JSON.stringify(result));
+}]]></script>
+            <log level="full">
+                <property name="STEP" value="LOG 2"/>
+            </log>
+            <filter source="json-eval($.status)" regex="SUCCESS">
+                <then>
+                    <!-- Success Route -->
+                    <log level="custom">
+                        <property name="Route" value="SUCCESS BLOCK"/>
+                    </log>
+                    <script language="js">
+                        // Get payload as string
+                        var payloadStr = mc.getPayloadJSON();
+                        // If payload is already an object, convert to string first
+                        if (typeof payloadStr !== "string") {
+                        payloadStr = JSON.stringify(payloadStr);
+                        }
+                        // Parse string to JSON object
+                        var payload = JSON.parse(payloadStr);
+                        // Remove unwanted fields
+                        delete payload.status;
+                        delete payload.message;
+                        // Set updated payload back
+                        mc.setPayloadJSON(payload);
+</script>
+                    <mongodb.insertOne configKey="WSO2-Accelerator-DB">
+                        <collection>Reinstatement</collection>
+                        <document>{json-eval($)}</document>
+                        <responseVariable>dbResult</responseVariable>
+                        <overwriteBody>false</overwriteBody>
+                    </mongodb.insertOne>
+                </then>
+                <else>
+                    <!-- Default Route -->
+                    <log level="custom">
+                        <property name="Route" value="DEFAULT BLOCK"/>
+                    </log>
+                </else>
+            </filter>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>logging</message>
+            </log>
+            <script language="js">
+                // Get response property (stored as String)
+                var responseStr = mc.getProperty("response");
+                // Parse string to JSON object
+                var response = {};
+                if (responseStr != null) {
+                response = JSON.parse(responseStr);
+                }
+                // Construct new payload
+                var newPayload = {
+                policyStatusCode: response.policyStatusCode || "",
+                reinstatements: [
+                {
+                reinstatementId: response.reinstatementId || ""
+                }
+                ]
+                };
+                // Set as new payload
+                mc.setPayloadJSON(newPayload);</script>
+            <log level="full">
+                <property name="STEP" value="LOG 3"/>
+            </log>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "$set": $1
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$"/>
+                </args>
+            </payloadFactory>
+            <property name="updatePayload" expression="json-eval($)" scope="default" type="STRING"/>
+            <mongodb.updateOne configKey="WSO2-Accelerator-DB">
+                <collection>policies</collection>
+                <query>{$ctx:updateQuery}</query>
+                <update>{$ctx:updatePayload}</update>
+                <upsert>false</upsert>
+                <responseVariable>mongoUpdateResult</responseVariable>
+                <overwriteBody>true</overwriteBody>
+            </mongodb.updateOne>
+            <log level="full">
+                <property name="STEP" value="LOG 4"/>
+            </log>
+            <filter xpath="${payload.modifiedCount > 0}">
+                <then>
+                    <!-- SUCCESS SCENARIO -->
+                    <property name="messageType" value="application/json" scope="axis2"/>
+                    <property name="HTTP_SC" value="200" scope="axis2"/>
+                    <payloadFactory media-type="json">
+                        <format>$1</format>
+                        <args>
+                            <arg expression="get-property('response')" evaluator="xml"/>
+                        </args>
+                    </payloadFactory>
+                    <log level="full">
+                        <property name="STEP" value="LOG 5"/>
+                    </log>
+                </then>
+                <else>
+                    <!-- ERROR SCENARIO -->
+                    <property name="messageType" value="application/json" scope="axis2"/>
+                    <property name="HTTP_SC" value="404" scope="axis2"/>
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                            "errorCode": "404",
+                            "errorMessage": "Data not found",
+                            "errorDetails": "The data requested is not found in database.",
+                            "transactionId": "$1",
+                            "timeStamp": "$2"
+                            }
+                        </format>
+                        <args>
+                            <arg expression="get-property('correlation_id')"/>
+                            <arg expression="get-property('SYSTEM_DATE')"/>
+                        </args>
+                    </payloadFactory>
+                    <log level="full">
+                        <property name="STEP" value="LOG 6"/>
+                    </log>
+                </else>
+            </filter>
+        </then>
+        <else>
+            <!-- ERROR SCENARIO -->
+            <property name="messageType" value="application/json" scope="axis2"/>
+            <property name="HTTP_SC" value="404" scope="axis2"/>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "404",
+                    "errorMessage": "Data not found",
+                    "errorDetails": "The data requested is not found in database.",
+                    "transactionId": "$1",
+                    "timeStamp": "$2"
+                    }
+                </format>
+                <args>
+                    <arg expression="get-property('correlation_id')"/>
+                    <arg expression="get-property('SYSTEM_DATE')"/>
+                </args>
+            </payloadFactory>
+        </else>
+    </filter>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="reinstatement-sapi"/>
+        <with-param name="sequence" value="reinstatement-sapi-createReinstatement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended reinstatement-sapi-createReinstatement-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

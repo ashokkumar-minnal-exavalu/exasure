@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="patch-issue-specific-policy-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyNumber" expression="get-property('uri.var.policyNumber')"/>
+        <property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:policyNumber, '&quot;}')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-api"/>
+        <with-param name="sequence" value="patch-issue-specific-policy-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started patch-issue-specific-policy-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <mongodb.find configKey="MongoDB-Connection-Policy-API">
+        <collection>policies</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>First call to Retrieve policy details++++++++++++++</message>
+    </log>
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'false'">
+        <then>
+            <propertyGroup description="error details">
+                <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="Policy does not exist in the system" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="404"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-api"/>
+                <with-param name="sequence" value="patch-issue-specific-policy-sapi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="policy-sapi-fault-sequence"/>
+        </then>
+        <else></else>
+    </filter>
+    <property name="status" expression="json-eval($.data[0].policyStatusCode)" scope="default"/>
+    <filter xpath="$ctx:status = 'ACCEPTED'">
+        <then>
+            <script language="js"><![CDATA[
+                var old = mc.getPayloadJSON().data[0];
+                var oldStart = new Date(old.termStartDate);
+                var oldEnd = new Date(old.termEndDate);
+
+                var termDays = Math.floor((oldEnd - oldStart) / (1000*60*60*24));
+
+                var newStart = new Date();
+                var newEnd = new Date(newStart.getTime() + (termDays*24*60*60*1000));
+
+                mc.setProperty("newStart", newStart.toISOString().substring(0,10));
+                mc.setProperty("newEnd", newEnd.toISOString().substring(0,10));
+            ]]></script>
+            <property name="mongoUpdate" type="STRING"
+            expression="fn:concat(
+            '{',
+            '&quot;$set&quot;:{',
+
+                '&quot;policyStatusCode&quot;:&quot;ACTIVE&quot;,',
+                '&quot;policyissuedDate&quot;:&quot;', $ctx:newStart, '&quot;,',
+                '&quot;termStartDate&quot;:&quot;', $ctx:newStart, '&quot;,',
+                '&quot;termEndDate&quot;:&quot;', $ctx:newEnd, '&quot;,',
+
+                '&quot;billing&quot;:{',
+                    '&quot;invoices&quot;:[',
+                        '{',
+                            '&quot;invoiceId&quot;:&quot;4146831f-8fc5-4bcf-bb90-e17ab9b006c6&quot;,',
+                            '&quot;url&quot;:&quot;https://storage.sandbox.socotra.com/...pdf&quot;,',
+                            '&quot;fileName&quot;:&quot;invoice.pdf&quot;,',
+                            '&quot;type&quot;:&quot;pdf&quot;,',
+                            '&quot;createdTimestamp&quot;:&quot;', $ctx:newStart, '&quot;',
+                        '}',
+                    ']',
+                '},',
+
+                '&quot;endorsements&quot;:[],',
+                '&quot;renewals&quot;:[],',
+                '&quot;reinstatements&quot;:[]',
+
+            '}',
+            '}'
+            )"/>
+            <mongodb.updateOne configKey="MongoDB-Connection-Policy-API">
+                <collection>policies</collection>
+                <query>{$ctx:mongoQuery}</query>
+                <update>{$ctx:mongoUpdate}</update>
+                <upsert>False</upsert>
+                <collation></collation>
+                <arrayFilters></arrayFilters>
+                <responseVariable>mongodb_updateOne_1</responseVariable>
+                <overwriteBody>true</overwriteBody>
+            </mongodb.updateOne>
+            <!-- ============================================= -->
+            <!-- Call Document Service                         -->
+            <!-- ============================================= -->                    
+            <propertyGroup description="inputProperties">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/policies/',get-property('policyNumber'), '/documents')"/>
+            </propertyGroup>
+            <call blocking="true">
+                <endpoint key="Document-service-restEndpoint"/>
+            </call>    
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Response from policy Document service+++++</message>
+            </log>                                    
+            <property description="statusCode" expression="$axis2:HTTP_SC" name="statusCode" scope="default" type="STRING"/>
+            <filter xpath="get-property('statusCode')='200'">
+                <then>
+                    <payloadFactory description="Response poayload" media-type="json">
+                        <format>
+                            $1
+                        </format>
+                        <args>
+                            <arg evaluator="json" expression="$"/>
+                        </args>
+                    </payloadFactory>
+                </then>
+                <else>
+                    <propertyGroup description="error details">
+                        <property expression="json-eval($.errors[0].errorCode)" name="ERROR_CODE" scope="default" type="STRING"/>
+                        <property expression="json-eval($.errors[0].errorMessage)" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                        <property expression="json-eval($.errors[0].errorDescription)" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                    </propertyGroup>
+                    <call-template description="Error Log" target="Common-Log-Template-V1">
+                        <with-param name="service" value="policy-api"/>
+                        <with-param name="sequence" value="patch-issue-specific-policy-sapi-sequence"/>
+                        <with-param name="level" value="INFO"/>
+                        <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                        <with-param name="status" value="ERROR"/>
+                    </call-template>
+                    <sequence key="policy-sapi-fault-sequence"/>
+                </else>
+            </filter>
+            <property name="updateQuery" expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:policyNumber, '&quot;}')"/>
+
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "$set": {
+                    "documents": [{
+                    "binaryData": "$1",
+                    "documentTypeCode": "$2",
+                    "displayName": "$3",
+                    "type": "PDF",
+                    "generatedDate": "$4"
+                    }]
+                    }
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.data"/>
+                    <arg evaluator="json" expression="$.fileName"/>
+                    <arg evaluator="json" expression="$.policyNumber"/>
+                    <arg expression="get-property('SYSTEM_DATE','yyyy-MM-dd')"/>
+                </args>
+            </payloadFactory>
+
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>After Updateone PayloadFactory +++++</message>
+            </log>
+            <property name="updatePayload" expression="json-eval($)" scope="default" type="STRING"/>
+            <mongodb.updateOne configKey="MongoDB-Connection-Policy-API">
+                <collection>policies</collection>
+                <query>{$ctx:updateQuery}</query>
+                <update>{$ctx:updatePayload}</update>
+                <upsert>False</upsert>
+                <collation></collation>
+                <arrayFilters></arrayFilters>
+                <responseVariable>UpdatePolicyCollectionResult</responseVariable>
+                <overwriteBody>true</overwriteBody>
+            </mongodb.updateOne>
+            <!-- <filter xpath="${payload.matchedCount &gt; 0}">
+                <then>            
+                    <filter xpath="${payload.modifiedCount &gt; 0}">
+                        <then>
+                            <propertyGroup description="updated_properties">
+                                <property name="HTTP_SC" scope="axis2" type="STRING" value="204"/>
+                                <property name="NO_ENTITY_BODY" scope="axis2" type="BOOLEAN" value="true"/>
+                            </propertyGroup>
+                        </then>
+                        <else>
+                            <payloadFactory media-type="json" template-type="default">
+                                <format>{ "message" : "Quote is already accepted for ${properties.synapse.quoteId}"}</format>
+                            </payloadFactory>
+                        </else>
+                    </filter>
+                </then>
+                <else>
+                    <propertyGroup description="error_properties">
+                        <property name="HTTP_SC" scope="axis2" type="STRING" value="404"/>
+                        <property name="ERROR_CODE" scope="default" type="STRING" value="404"/>
+                        <property name="ERROR_MESSAGE" scope="default" type="STRING" value="Invalid quote"/>
+                        <property name="ERROR_DETAIL" scope="default" type="STRING" value="The quoteId provided does not exist"/>
+                    </propertyGroup>
+                    <sequence key="quote-sapi-common-fault-sequence"/>
+                </else>
+            </filter> -->
+
+
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Before last Find Operation +++++</message>
+            </log>
+            <property name="mongoQuery" type="STRING" expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:policyNumber, '&quot;}')"/>
+            <mongodb.find configKey="MongoDB-Connection-Policy-API">
+                <collection>policies</collection>
+                <query>{$ctx:mongoQuery}</query>
+                <projection></projection>
+                <collation></collation>
+                <limit></limit>
+                <sort></sort>
+                <responseVariable>mongodb_find_1</responseVariable>
+                <overwriteBody>true</overwriteBody>
+            </mongodb.find>
+            <script language="js"><![CDATA[
+                var payload = mc.getPayloadJSON();
+                if (payload && payload.found && payload.data) {
+                    for (var i = 0; i < payload.data.length; i++) {
+                        delete payload.data[i]._id;
+                    }
+                    mc.setPayloadJSON(payload.data[0]);
+                } else {
+                    mc.setPayloadJSON([]);
+                }
+            ]]></script>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property value="500" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Internal Server Error" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="Provided policy number is not in Accepted state in the system" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                <!-- <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="500"/> -->
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-api"/>
+                <with-param name="sequence" value="patch-issue-specific-policy-sapi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="policy-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-api"/>
+        <with-param name="sequence" value="patch-issue-specific-policy-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended patch-issue-specific-policy-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

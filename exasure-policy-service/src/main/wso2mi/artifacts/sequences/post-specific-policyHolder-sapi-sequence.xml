@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="post-specific-policyHolder-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="post-specific-policyHolder-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started post-specific-policyHolder-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="policyHolderId" expression="json-eval($.policyHolderId)" scope="default"/>
+    <mongodb.insertOne configKey="MongoDB-Connection-PolicyHolder-API">
+        <collection>policyHolders</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>mongodb_insertOne_991</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+
+    <property name="insertedCount" expression="json-eval($.insertedCount)" scope="default"/>
+    <filter xpath="$ctx:insertedCount = 1">
+        <then>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "isSuccessFull": "true",
+                    "policyHolderId": "$1"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="xml" expression="get-property('policyHolderId')"/>
+                </args>
+            </payloadFactory>
+        </then>
+    <else>
+        <propertyGroup description="error details">
+            <property value="500" name="ERROR_CODE" scope="default" type="STRING"/>
+            <property value="Internal Server Error" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="Policy Holder is not created" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+        <call-template description="Error Log" target="ent-log-template-v2">
+            <with-param name="service" value="policyHolder-api"/>
+            <with-param name="sequence" value="post-specific-policyHolder-sapi-sequence"/>
+            <with-param name="level" value="INFO"/>
+            <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/> 
+            <with-param name="status" value="ERROR"/>
+            </call-template>        
+        <sequence key="policyHolder-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="post-specific-policyHolder-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended post-specific-policyHolder-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

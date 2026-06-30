@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-specific-policyHolder-papi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyHolderId" expression="get-property('uri.var.policyHolderId')"/>          
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="get-specific-policyHolder-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started get-specific-policyHolder-papi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>      
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/', get-property('policyHolderId'))"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="policyHolder-sapi-restEndpoint"/>
+    </call>
+    <!-- <property description="statusCode" expression="$axis2:HTTP_SC" name="statusCode" scope="default" type="STRING"/>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>status code returned from sapi****</message>
+        <property description="statusCode" expression="$axis2:HTTP_SC" name="statusCode**" scope="default" type="STRING"/>
+    </log>    
+    <filter xpath="get-property('statusCode')='200'">
+        <then>
+            <payloadFactory description="Response poayload" media-type="json">
+                <format>
+					$1
+				</format>
+                <args>
+                    <arg evaluator="json" expression="$"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property expression="json-eval($.errors[0].errorCode)" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorMessage)" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorDescription)" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-api"/>
+                <with-param name="sequence" value="get-policies-against-policyHolder-papi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="policyHolder-papi-fault-sequence"/>
+        </else>
+    </filter> -->
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "isSuccessFull": true,
+                    "policyHolderId": "$1",
+                    "createdTimestamp": "$2",
+                    "updatedTimestamp": "$3",
+                    "policyHolderDetails": {
+                    "firstName": "$4",
+                    "lastName": "$5",
+                    "dateOfBirth": "$6",
+                    "gender": "$7",
+                    "occupation": "$8",
+                    "maritalStatus": "$9",
+                    "email": "$10",
+                    "address": {
+                    "country": "$11",
+                    "state": "$12",
+                    "zipCode": "$13"
+                    }
+                    }
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.data.policyHolderId"/>
+                    <arg evaluator="json" expression="$.data.createdTimestamp"/>
+                    <arg evaluator="json" expression="$.data.updatedTimestamp"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.firstName"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.lastName"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.dateOfBirth"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.gender"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.occupation"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.maritalStatus"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.email"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.address.country"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.address.state"/>
+                    <arg evaluator="json" expression="$.data.policyHolderDetails.address.zipCode"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property expression="json-eval($.errors[0].errorCode)" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorMessage)" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorDescription)" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="policyHolder-api"/>
+                <with-param name="sequence" value="get-specific-policyHolder-papi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="policyHolder-papi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policyHolder-api"/>
+        <with-param name="sequence" value="get-specific-policyHolder-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended get-specific-policyHolder-papi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>    
+</sequence>

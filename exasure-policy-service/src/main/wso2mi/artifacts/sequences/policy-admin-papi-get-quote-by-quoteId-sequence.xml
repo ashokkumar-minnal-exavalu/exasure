@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="policy-admin-papi-get-quote-by-quoteId-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-get-quote-by-quoteId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating policy-admin-papi-get-quote-by-quoteId-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="HTTP_METHOD" scope="axis2" value="GET"/>
+    <property name="quoteId" expression="get-property('uri.var.quoteId')"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" expression="concat('/quote/', $ctx:quoteId,)"/>
+    <call>
+        <endpoint key="quote-sapi-restEndpoint"/>
+    </call>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-get-quote-by-quoteId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending policy-admin-papi-get-quote-by-quoteId-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

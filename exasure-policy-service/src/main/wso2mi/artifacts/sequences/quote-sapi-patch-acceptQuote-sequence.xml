@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="quote-sapi-patch-acceptQuote-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="quoteId" expression="get-property('uri.var.quoteId')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="quote-api"/>
+        <with-param name="sequence" value="quote-sapi-patch-acceptQuote-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Initiating quote-sapi-patch-acceptQuote-sequence for quoteId- ', $ctx:uri.var.quoteId)}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="updateQuery" expression="fn:concat('{&quot;quote.quoteId&quot;:&quot;', $ctx:quoteId, '&quot;}')"/>
+    <payloadFactory description="update status" media-type="json" template-type="default">
+        <format>{"$set":{"quote.status": "ACCEPTED"}}</format>
+    </payloadFactory>
+    <property name="updatePayload" expression="json-eval($)" scope="default" type="STRING"/>
+    <mongodb.updateOne configKey="WSO2-MongoDB-Connection">
+        <collection>quotes</collection>
+        <query>{$ctx:updateQuery}</query>
+        <update>{$ctx:updatePayload}</update>
+        <upsert>False</upsert>
+        <collation></collation>
+        <arrayFilters></arrayFilters>
+        <responseVariable>acceptQuoteQueryResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.updateOne>
+    <property name="updateQuery" expression="fn:concat('{&quot;quote.quoteId&quot;:&quot;', $ctx:quoteId, '&quot;}')"/>
+    <mongodb.findOne configKey="WSO2-MongoDB-Connection">
+        <collection>quotes</collection>
+        <query>{$ctx:updateQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>quoteDetailsResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+    <!-- SUCCESS SCENARIO -->
+    <script language="js"><![CDATA[
+var response = mc.getPayloadJSON();
+
+// Ensure data object exists
+if (response && response.data) {
+
+    var dataObj = response.data;
+
+    // Remove _id if present
+    if (dataObj._id) {
+        delete dataObj._id;
+    }
+
+    // Set cleaned object as final payload
+    mc.setPayloadJSON(dataObj);
+}
+]]></script>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="quote-api"/>
+        <with-param name="sequence" value="quote-sapi-patch-acceptQuote-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Ending quote-sapi-patch-acceptQuote-sequence for quoteId- ', $ctx:uri.var.quoteId)}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond description="respond to client"/>
+</sequence>

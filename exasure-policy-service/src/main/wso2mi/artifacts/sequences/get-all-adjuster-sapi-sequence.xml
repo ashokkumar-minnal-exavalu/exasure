@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-all-adjuster-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="get-all-adjuster-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating get-all-adjuster-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <!-- Build Query from Query Params -->
+    <script language="js"><![CDATA[
+
+        var query = {};
+
+        var status = mc.getProperty("query.param.status");
+        var skill  = mc.getProperty("query.param.skill");
+        var state  = mc.getProperty("query.param.state");
+
+        if (status != null && status !== "") {
+            query.status = status;
+        }
+
+        if (skill != null && skill !== "") {
+            query.skills = skill;
+        }
+
+        if (state != null && state !== "") {
+            query.licensedStates = state;
+        }
+
+        mc.setProperty("claimAdjusterQuery", JSON.stringify(query));
+
+    ]]></script>
+
+    <!-- Log Query -->
+    <log level="custom">
+        <property name="QUERY" expression="get-property('claimAdjusterQuery')"/>
+    </log>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Get all adjuster Query++++++++</message>
+        <property name="get all adjuster QUERY+++++++++" expression="get-property('claimAdjusterQuery')"/>
+    </log>    
+    <mongodb.findOne configKey="claim-assignment-sapi-MongoDB">
+        <collection>adjuster</collection>
+        <query>{$ctx:claimAdjusterQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>mongodb_findOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Get all adjuster Mongo Response++++++++</message>
+    </log>        
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <script language="js"><![CDATA[
+                var payload = mc.getPayloadJSON();
+                if (payload && payload.found && payload.data) {
+                    
+                        delete payload.data._id;
+                    
+                    mc.setPayloadJSON(payload.data);
+                } else {
+                    mc.setPayloadJSON([]);
+                }
+            ]]></script>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="No details found for the assignments" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="404"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-api"/>
+                <with-param name="sequence" value="get-assignment-sapi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="claim-assignment-sapi-fault-sequence"/>
+        </else>
+    </filter>
+
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="get-all-adjuster-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended get-all-adjuster-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

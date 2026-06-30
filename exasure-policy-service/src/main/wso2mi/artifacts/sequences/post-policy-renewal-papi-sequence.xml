@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="post-policy-renewal-papi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyNumber" expression="get-property('uri.var.policyNumber')" scope="default"/>
+        <property name="reqPayload" expression="json-eval($)" scope="default" type="STRING"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-renewal-api"/>
+        <with-param name="sequence" value="post-policy-renewal-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started post-policy-renewal-papi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>    
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/', get-property('policyNumber'))"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="policy-papi-restEndpoint"/>
+    </call>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Payload received from retrieve policy detail endpoint+++++</message>
+        <property name="policyDetails++++++" expression="json-eval($)" scope="default" type="STRING"/>    
+    </log>    
+    <property name="policyDetails" expression="json-eval($)" scope="default" type="STRING"/>    
+    <!-- ================= VALIDATION ================= -->
+    <script language="js"><![CDATA[
+
+        var policy = JSON.parse(mc.getProperty("policyDetails"));
+        var req = JSON.parse(mc.getProperty("reqPayload"));
+        function toDate(d){
+            return new Date(d);
+        }
+
+        var response = {};
+
+        if(policy == null){
+
+            response.status="ERROR";
+            response.reason="POLICY_DETAILS_MISSING";
+            response.message="Policy details were not loaded before validation";
+
+        }else{
+
+            var policyActive =
+                policy.policyStatusCode &&
+                policy.policyStatusCode.toUpperCase() == "ACTIVE";
+
+            var renewalsExist =
+                policy.renewals != null && policy.renewals.length > 0;
+
+            var termStatusPresent =
+                renewalsExist && policy.renewals[0].termStatusCode;
+
+            var allTermsActive = true;
+
+            if(termStatusPresent){
+
+                var activeFound=false;
+
+                for(var i=0;i<policy.renewals.length;i++){
+
+                    var term = policy.renewals[i].termStatusCode;
+
+                    if(term &&
+                       (term.toUpperCase()=="ACTIVE" ||
+                        term.toUpperCase()=="RENEWED")){
+
+                        activeFound=true;
+                    }
+                }
+
+                allTermsActive = activeFound;
+            }
+
+            var validDates =
+                toDate(req.proposedTermStartDate) >
+                toDate(policy.termEndDate);
+
+            if(!policyActive){
+
+                response.status="ERROR";
+                response.reason="POLICY_NOT_ACTIVE";
+                response.message="Policy is lapsed or terminated and cannot be renewed";
+
+            }else if(termStatusPresent && !allTermsActive){
+
+                response.status="ERROR";
+                response.reason="TERM_NOT_ACTIVE";
+                response.message="Policy term is not active";
+
+            }else if(!validDates){
+
+                response.status="ERROR";
+                response.reason="INVALID_PROPOSED_DATE";
+                response.message="Proposed term start date must be after current term end date";
+
+            }else{
+
+                response.status="OK";
+                response.currentPolicyTermIdentifier =
+                    policy.currentPolicyTermIdentifier;
+            }
+        }
+
+        mc.setPayloadJSON(response);
+
+    ]]></script>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>After 1st Script at create renewal PAPI+++++++++</message>
+        <property name="currentPolicyTermIdentifier++++++" expression="json-eval($.currentPolicyTermIdentifier)" scope="default"/>    
+        <property description="status" expression="json-eval($.status)" name="status+++++++++" scope="default" type="STRING"/>
+    </log><!-- currentPolicyTermIdentifier -->
+    <property name="currentPolicyTermIdentifier" expression="json-eval($.currentPolicyTermIdentifier)" scope="default"/>    
+    <property description="status" expression="json-eval($.status)" name="status" scope="default" type="STRING"/>
+    <!-- ================= CHOICE ================= -->
+    <filter xpath="$ctx:status = 'OK'">
+
+        <then>
+
+            <!-- ================= RENEWAL REQUEST PAYLOAD ================= -->
+            <script language="js"><![CDATA[
+
+            var policy = JSON.parse(mc.getProperty("policyDetails"));
+            var req = JSON.parse(mc.getProperty("reqPayload"));
+            var currentPolicyTermIdentifier = mc.getProperty("currentPolicyTermIdentifier");
+
+            // ================= Helpers =================
+            function notEmpty(v){
+                return v != null && v !== "";
+            }
+
+            function toNum(v){
+                return v ? Number(v) : 0;
+            }
+
+            function year(d){
+                return Number(d.substring(0,4));
+            }
+
+            function yearDiff(startDate,endDate){
+                return year(endDate) - year(startDate);
+            }
+
+            function genRenewalId(){
+                return "REN-" + Math.floor((Math.random()*90000000)+10000000);
+            }
+
+            // ================= Pricing =================
+            function vehiclePremium(v){
+
+                var premium =
+                    (toNum(v.annualMileage)/1000)*100 +
+                    (toNum(v.vehicleValue)/100000)*200;
+
+                if(v.coverages && v.coverages.coverageIdentifier){
+                    premium += 1000;
+                }
+
+                return premium;
+            }
+
+            function driverPremium(d){
+
+                return (toNum(d.accidentCount)*500) +
+                    (toNum(d.violationCount)*300);
+            }
+
+            function calcPremium(req){
+
+                var total = 10000;
+
+                if(req.vehicle){
+
+                    req.vehicle.forEach(function(v){
+                        total += vehiclePremium(v);
+                    });
+                }
+
+                if(req.driverDetails){
+
+                    req.driverDetails.forEach(function(d){
+                        total += driverPremium(d);
+                    });
+                }
+
+                return total;
+            }
+
+            function buildPricing(req){
+
+                var premium = calcPremium(req);
+
+                return {
+
+                    totalPremium: premium + 500,
+                    grossFees: 500,
+
+                    amounts: [
+
+                        {
+                            amountTypeCode: "PREMIUM",
+                            amountValue: premium,
+                            currencyCode: "USD"
+                        },
+
+                        {
+                            amountTypeCode: "FEE",
+                            amountValue: 500,
+                            currencyCode: "USD"
+                        }
+                    ]
+                };
+            }
+
+            // ================= Vehicle Mapping =================
+            function mapVehicles(reqVehicles){
+
+                if(!reqVehicles) return null;
+
+                var vehicles = [];
+
+                reqVehicles.forEach(function(v){
+
+                    if(notEmpty(v.insurableObjectIdentifier)){
+
+                        var vehicleObj = {
+
+                            insurableObjectIdentifier: v.insurableObjectIdentifier,
+                            insurableObjectTypeCode: "VEHICLE"
+                        };
+
+                        if(notEmpty(v.annualMileage) || notEmpty(v.vehicleValue)){
+
+                            vehicleObj.vehicles = {};
+
+                            if(notEmpty(v.annualMileage))
+                                vehicleObj.vehicles.annualMileage = v.annualMileage;
+
+                            if(notEmpty(v.vehicleValue))
+                                vehicleObj.vehicles.vehicleValue = v.vehicleValue;
+                        }
+
+                        if(v.coverages && notEmpty(v.coverages.coverageIdentifier)){
+
+                            vehicleObj.coverages = {
+
+                                coverageIdentifier: v.coverages.coverageIdentifier
+                            };
+
+                            if(notEmpty(v.coverages.limitAmount))
+                                vehicleObj.coverages.limitAmount = v.coverages.limitAmount;
+
+                            if(notEmpty(v.coverages.deductibleAmount))
+                                vehicleObj.coverages.deductibleAmount = v.coverages.deductibleAmount;
+                        }
+
+                        vehicles.push(vehicleObj);
+                    }
+                });
+
+                return vehicles;
+            }
+
+            // ================= Driver Mapping =================
+            function mapDrivers(reqDrivers){
+
+                if(!reqDrivers) return null;
+
+                var drivers = [];
+
+                reqDrivers.forEach(function(d){
+
+                    if(notEmpty(d.driverIdentifier)){
+
+                        var driver = {
+
+                            driverIdentifier: d.driverIdentifier
+                        };
+
+                        if(notEmpty(d.drivingExperienceYearCount))
+                            driver.drivingExperienceYearCount = d.drivingExperienceYearCount;
+
+                        if(notEmpty(d.yearsLicensedCount))
+                            driver.yearsLicensedCount = d.yearsLicensedCount;
+
+                        if(notEmpty(d.accidentCount))
+                            driver.accidentCount = d.accidentCount;
+
+                        if(notEmpty(d.violationCount))
+                            driver.violationCount = d.violationCount;
+
+                        drivers.push(driver);
+                    }
+                });
+
+                return drivers;
+            }
+
+            // ================= Build Output =================
+
+            var response = {
+
+                renewalId: genRenewalId(),
+
+                policyNumber: policy.policyNumber,
+
+                currentPolicyTermIdentifier: currentPolicyTermIdentifier,
+
+                renewalStatusCode: "OFFERED",
+
+                proposedTermStartDate: req.proposedTermStartDate,
+
+                proposedTermEndDate: req.proposedTermEndDate,
+
+                policyPeriod:
+                    yearDiff(req.proposedTermStartDate,
+                            req.proposedTermEndDate) + " years",
+
+                pricing: buildPricing(req)
+            };
+
+            var vehicles = mapVehicles(req.vehicle);
+            if(vehicles) response.vehicles = vehicles;
+
+            var drivers = mapDrivers(req.driverDetails);
+            if(drivers) response.driverDetails = drivers;
+
+            mc.setPayloadJSON(response);
+
+            ]]></script>  
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Payload received before policy renewal sapi call+++++</message>
+                <property name="REST_URL_POSTFIX++++" scope="axis2" type="STRING" expression="fn:concat('/', get-property('policyNumber'), '/renewal')"/>
+            </log>              
+            <propertyGroup description="inputProperty">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/policies/', get-property('policyNumber'), '/renewal')"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="policy-renewal-sapi-restEndpoint"/>
+            </call>
+        </then>
+
+        <!-- ================= ERROR ================= -->
+        <else>
+            <propertyGroup description="error details">
+                <property value="400" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property expression="json-eval($.reason)" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property expression="json-eval($.message)" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                <property description="Error code" name="HTTP_SC" scope="axis2" type="STRING" value="400"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-api"/>
+                <with-param name="sequence" value="post-policy-renewal-papi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-renewal-api"/>
+        <with-param name="sequence" value="post-policy-renewal-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended post-policy-renewal-papi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

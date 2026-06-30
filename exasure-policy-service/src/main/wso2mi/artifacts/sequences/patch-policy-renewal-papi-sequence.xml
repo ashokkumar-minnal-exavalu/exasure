@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="patch-policy-renewal-papi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="renewalId" expression="get-property('uri.var.renewalId')" scope="default"/>
+        <property name="policyNumber" expression="get-property('query.param.policyNumber')" scope="default"/>
+        <property name="action" expression="get-property('query.param.action')" scope="default"/>
+        <property name="updatePolicyPayload" expression="json-eval($)" scope="default"/>
+        <property name="mongoQuery-policyNumber" type="STRING" expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:policyNumber, '&quot;}')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-renewal-api"/>
+        <with-param name="sequence" value="patch-policy-renewal-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started patch-policy-renewal-papi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <filter xpath="$ctx:action = 'ACCEPT'">
+        <then>
+            <propertyGroup description="inputProperty">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/renewals/', get-property('renewalId'))"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="policy-papi-restEndpoint"/>
+            </call>
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Response from retrieve policy renewal endpoint at PAPI++++++</message>
+            </log>
+            <!-- renewalpayload -->
+            <property name="renewalpayload" expression="json-eval($)" scope="default" type="STRING"/>
+            <propertyGroup description="inputProperty">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/', get-property('policyNumber'))"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="policy-papi-restEndpoint"/>
+            </call>
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Payload received from retrieve policy detail endpoint+++++</message>
+                <property name="policyDetails++++++" expression="json-eval($)" scope="default" type="STRING"/>
+                <property name="quoteId++++++++++" expression="json-eval($.quote.quoteId)" scope="default" type="STRING"/>
+            </log>
+            <!-- policyPayload -->
+            <property name="policyPayload" expression="json-eval($)" scope="default" type="STRING"/>
+            <property name="quoteId" expression="json-eval($.quote.quoteId)" scope="default" type="STRING"/>
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Properties values++++++++++++</message>
+                <property name="quoteId+++++++++" expression="json-eval($.quote.quoteId)" scope="default" type="STRING"/>
+                <property name="REST_URL_POSTFIX+++++++++++++++++++++++++++" scope="axis2" type="STRING" expression="fn:concat('/quote/', get-property('quoteId'), '/coverages')"/>
+            </log>            
+            <propertyGroup description="inputProperty">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/quote/', get-property('quoteId'), '/coverages')"/>                      
+            </propertyGroup>
+            <call>
+                <endpoint key="quote-sapi-restEndpoint"/>
+            </call>            
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Response from get all coverages endpoint +++++++++++++</message>
+            </log>
+            <property name="coveragePayload" expression="json-eval($)" scope="default" type="STRING"/> 
+
+            <!-- Create Quote Payload -->
+            <script language="js"><![CDATA[
+            var policy = JSON.parse(mc.getProperty("policyPayload"));
+            var renewal = JSON.parse(mc.getProperty("renewalpayload"));
+            var coverageList = JSON.parse(mc.getProperty("coveragePayload") || "[]");
+
+            function safeNumber(v){
+            if(v==null || v=="") return null;
+            return Number(v);
+            }
+
+            function getRenewalVehicle(id){
+            return (renewal.vehicles || []).filter(v=>v.insurableObjectIdentifier==id)[0];
+            }
+
+            function getPolicyCoverages(id){
+            return coverageList.filter(v=>v.insurableObjectIdentifier==id);
+            }
+
+            var result = {
+            parties: policy.parties,
+            productCode: (policy.productCode || "").toUpperCase(),
+            termStartDate: renewal.proposedTermStartDate || policy.termStartDate,
+            termEndDate: renewal.proposedTermEndDate || policy.termEndDate,
+            policyPeriod: renewal.policyPeriod || policy.policyPeriod,
+            channel:"Sales",
+            driverDetails:(renewal.driverDetails || policy.driverDetails || []).map(function(d){
+            return{
+                driverName:d.driverName,
+                driverLicenseNumber:d.driverLicenseNumber,
+                driverLicenseJurisdictionCode:d.driverLicenseJurisdictionCode,
+                driverLicenseJurisdictionZipCode:d.driverLicenseJurisdictionZipCode,
+                drivingExperienceYearCount:safeNumber(d.drivingExperienceYearCount),
+                yearsLicensedCount:safeNumber(d.yearsLicensedCount),
+                accidentCount:safeNumber(d.accidentCount),
+                violationCount:safeNumber(d.violationCount)
+            }
+            }),
+            underWritingQuestions: renewal.underWritingQuestions || policy.underWritingQuestions,
+            insurableObjects:(policy.insurableObjects || []).map(function(po){
+
+            var renewalObj = getRenewalVehicle(po.insurableObjectIdentifier) || {};
+            var policyCov = getPolicyCoverages(po.insurableObjectIdentifier);
+
+            return {
+            insurableObjectTypeCode: po.insurableObjectTypeCode,
+            vehicle:{
+                vehicleIdentificationNumber:po.vehicle.vehicleIdentificationNumber,
+                vehicleMakeName:po.vehicle.vehicleMakeName,
+                vehicleModelName:po.vehicle.vehicleModelName,
+                bodyType:po.vehicle.bodyType,
+                vehicleModelYear:safeNumber(po.vehicle.vehicleModelYear),
+                vehicleTypeCode:po.vehicle.vehicleTypeCode,
+                vehicleSafetyFeatureIndicator:po.vehicle.vehicleSafetyFeatureIndicator,
+                vehicleAntiTheftIndicator:po.vehicle.vehicleAntiTheftIndicator,
+                vehicleGaragingPostalCode:po.vehicle.vehicleGaragingPostalCode,
+                annualMileage:safeNumber(
+                renewalObj?.vehicles?.annualMileage
+                || po.vehicle.annualMileage),
+                ownershipTypeCode:po.vehicle.ownershipTypeCode,
+                cc:safeNumber(po.vehicle.cc),
+                vehicleValue:safeNumber(
+                renewalObj?.vehicles?.vehicleValue
+                || po.vehicle.vehicleValue),
+                licenseState:po.vehicle.licenseState,
+                licensePlateNumber:po.vehicle.licensePlateNumber,
+                primaryVehicleUse:po.vehicle.primaryVehicleUse,
+                travelRadiusFarm:safeNumber(po.vehicle.travelRadiusFarm),
+                unrepairedDamage:po.vehicle.unrepairedDamage
+            },
+            coverages:policyCov
+            }
+            })
+            };
+
+            mc.setPayloadJSON(result);
+            ]]></script>
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Payload after create quote script +++++++++++++</message>
+            </log>
+            <!-- isRenewalFlow -->
+            <property name="isRenewalFlow" value="true" scope="default"/>
+            <!-- renewalPricing -->
+            <property name="renewalPricing" expression="$ctx:renewalpayload.pricing" scope="default"/>            
+            <propertyGroup description="inputProperty">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/api/quote"/>                      
+            </propertyGroup>
+            <call>
+                <endpoint key="policy-admin-papi-quote-restEndpoint"/>
+            </call>  
+            <property name="createpayload" expression="json-eval($)" scope="default" type="STRING"/>
+            <property name="CreatequoteId" expression="json-eval($.quote.quoteId)" scope="default" type="STRING"/>
+
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Response received from create quote endpoint+++++++++++++</message>
+                <property name="CreatequoteId++++++++++"
+                        expression="get-property('CreatequoteId')"/>
+            </log>
+            <propertyGroup description="inputProperty">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/quote/', get-property('CreatequoteId'), '/accept')"/>                      
+            </propertyGroup>
+            <call>
+                <endpoint key="policy-admin-papi-quote-restEndpoint"/>
+            </call>
+            <property name="AcceptQuotePayload" expression="json-eval($)" scope="default" type="STRING"/>
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Response received from Accept quote endpoint+++++++++++++</message>
+            </log>
+            <!-- patch renewal payload -->
+            <script language="js"><![CDATA[
+            var policy = JSON.parse(mc.getProperty("policyPayload") || "{}");
+            var renewal = JSON.parse(mc.getProperty("renewalpayload") || "{}");
+            var AcceptQuote = JSON.parse(mc.getProperty("AcceptQuotePayload") || "{}");
+            function notEmpty(v){ return v!=null && v!="" }
+
+            function safeStr(v){ return (v||"").toString() }
+
+            function genTxnId(id){ return "TXN-REN-" + safeStr(id) }
+
+            function extractTermNo(t){
+            return Number((t || "0").replace("TERM-",""));
+            }
+
+            function pad3(n){
+            if(n<10) return "00"+n;
+            if(n<100) return "0"+n;
+            return ""+n;
+            }
+
+            var renewalsArr = policy.renewals || [];
+
+            var lastTermNo = 0;
+            renewalsArr.forEach(function(r){
+            var n = extractTermNo(r.policyTermIdentifier);
+            if(n>lastTermNo) lastTermNo=n;
+            });
+
+            var nextTerm = "TERM-"+pad3(lastTermNo+1);
+
+            var newRenewal = {
+            renewalId:renewal.renewalId,
+            policyNumber: AcceptQuote.policyNumber,
+            policyTermIdentifier: nextTerm,
+            termSequenceNumber: renewalsArr.length+1,
+            transactionTypeCode:"RENEWAL",
+            transactionIdentifier: genTxnId(renewal.renewalId),
+            transactionStatusCode:"RENEWED",
+            termStatusCode:"RENEWED",
+            termStartDate: renewal.proposedTermStartDate,
+            termEndDate: renewal.proposedTermEndDate,
+            policyPeriod: renewal.policyPeriod || "1 years",
+            pricing: renewal.pricing
+            };
+
+            var output = {
+            currentPolicyTermIdentifier:nextTerm,
+            termStatusCode:"RENEWED",
+            renewals: renewalsArr.concat([newRenewal])
+            };
+
+            mc.setPayloadJSON(output);
+            ]]></script> 
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Payload after last script just before calling accept/decline renewal SAPI +++++++++++++</message>
+            </log>   
+            <propertyGroup description="patchRenewal">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/renewals/',get-property('renewalId'),'?action=',get-property('action'),'&amp;policyNumber=',get-property('policyNumber'))"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="policy-renewal-sapi-restEndpoint"/>
+            </call> 
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Response received from calling accept/decline renewal SAPI +++++++++++++</message>
+            </log>                                                                                                              
+        </then>
+        <else>
+            <propertyGroup description="patchRenewal">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="concat('/renewals/',get-property('renewalId'),'?action=',get-property('action'),'&amp;policyNumber=',get-property('policyNumber'))"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="policy-renewal-sapi-restEndpoint"/>
+            </call> 
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Response received from calling decline renewal SAPI Scenario +++++++++++++</message>
+            </log>            
+        </else>
+    </filter>       
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-renewal-api"/>
+        <with-param name="sequence" value="patch-policy-renewal-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended patch-policy-renewal-papi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>         
+</sequence>

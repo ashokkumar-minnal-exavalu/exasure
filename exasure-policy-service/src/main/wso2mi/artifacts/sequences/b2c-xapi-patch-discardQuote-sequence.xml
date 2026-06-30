@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="b2c-xapi-patch-discardQuote-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+   <filter xpath="${exists(params.pathParams.quoteId)}">
+        <then>
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="b2c-xapi"/>
+                <with-param name="sequence" value="b2c-xapi-patch-discardQuote-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{${'Initiating b2c-xapi-patch-discardQuote-sequence for quoteId: ' + params.pathParams.quoteId}}"/>
+                <with-param name="status" value="START"/>
+            </call-template>
+            <http.patch configKey="HTTP-quote-papi-connection">
+                <relativePath>/api/quote/${params.pathParams.quoteId}/discard</relativePath>
+                <headers>[]</headers>
+                <requestBodyType>JSON</requestBodyType>
+                <requestBodyJson></requestBodyJson>
+                <forceScAccepted>false</forceScAccepted>
+                <disableChunking>false</disableChunking>
+                <forceHttp10>false</forceHttp10>
+                <noKeepAlive>false</noKeepAlive>
+                <responseVariable>http_patch_1</responseVariable>
+                <overwriteBody>true</overwriteBody>
+            </http.patch>
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="b2c-xapi"/>
+                <with-param name="sequence" value="b2c-xapi-patch-discardQuote-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{${'Ending b2c-xapi-patch-discardQuote-sequence for quoteId: ' + params.pathParams.quoteId}}"/>
+                <with-param name="status" value="END"/>
+            </call-template>
+            <respond/>
+        </then>
+        <else>
+            <variable name="ERROR_CODE" type="STRING" value="VALIDATION_ERROR"/>
+            <variable name="ERROR_MESSAGE" type="STRING" value="quoteId parameter is missing"/>
+            <variable name="ERROR_DETAIL" value="The quoteId path parameter is required" type="STRING"/>
+            <variable name="HTTP_SC" value="400" type="STRING"/>
+            
+            <sequence key="b2c-xapi-common-fault-sequence"/>
+        </else>
+    </filter>
+</sequence>

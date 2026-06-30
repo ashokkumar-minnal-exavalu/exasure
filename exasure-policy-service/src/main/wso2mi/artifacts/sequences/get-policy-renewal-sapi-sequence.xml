@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-policy-renewal-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="renewalId" expression="get-property('uri.var.renewalId')"/>
+        <property name="mongoQuery" expression="fn:concat('{&quot;renewalId&quot;:&quot;', $ctx:renewalId, '&quot;}')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="policy-renewal-api"/>
+        <with-param name="sequence" value="get-policy-renewal-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating get-policy-renewal-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <mongodb.findOne configKey="Renewal-SAPI-Connection">
+        <collection>renewal</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>quoteDetailsResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="policy-renewal-api"/>
+        <with-param name="sequence" value="get-policy-renewal-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending get-policy-renewal-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

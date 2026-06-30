@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="endorsement-sapi-accept-endorsement-sequence"
+          trace="disable"
+          xmlns="http://ws.apache.org/ns/synapse">
+
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="ContentType" value="application/json" scope="axis2"/>
+
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="endorsementId" expression="get-property('uri.var.endorsementId')" scope="default" type="STRING"/>
+    </propertyGroup>
+
+    <log level="custom">
+        <property name="message" value="accept endorsement flow started."/>
+        <property name="endorsementId" expression="$ctx:endorsementId"/>
+    </log>
+
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-accept-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Initiating accept endorsement for endorsementId - ', $ctx:endorsementId)}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <property name="endorsementQuery"
+              expression="fn:concat('{&quot;endorsementId&quot;:&quot;', $ctx:endorsementId, '&quot;}')"
+              scope="default"
+              type="STRING"/>
+
+    <log level="custom">
+        <property name="CHECKPOINT" value="BEFORE_MONGO_FIND"/>
+        <property name="endorsementQuery" expression="$ctx:endorsementQuery"/>
+    </log>
+
+    <mongodb.find configKey="MongoDB-connection-endorsement">
+        <collection>endorsement</collection>
+        <query>{$ctx:endorsementQuery}</query>
+        <responseVariable>endorsementFindResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+
+    <property name="FOUND" expression="json-eval($.found)" scope="default" type="STRING"/>
+    <property name="COUNT" expression="json-eval($.count)" scope="default" type="STRING"/>
+
+    <log level="custom">
+        <property name="CHECKPOINT" value="AFTER_MONGO_FIND"/>
+        <property name="found" expression="$ctx:FOUND"/>
+        <property name="count" expression="$ctx:COUNT"/>
+        <property name="firstId" expression="json-eval($.data[0].endorsementId)"/>
+        <property name="statusFromDb" expression="json-eval($.data[0].endorsementStatusCode)"/>
+    </log>
+
+    <filter xpath="($ctx:FOUND = 'false') or ($ctx:COUNT = '0')">
+        <then>
+            <propertyGroup description="error details">
+                <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="Data not found for the given endorsementId" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="endorsement-sapi"/>
+                <with-param name="sequence" value="endorsement-sapi-accept-endorsement-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+
+            <sequence key="endorsement-sapi-fault-sequence"/>
+        </then>
+        <else/>
+    </filter>
+
+    <property name="STATUS" expression="json-eval($.data[0].endorsementStatusCode)" scope="default" type="STRING"/>
+    <property name="POLICY_NUMBER" expression="json-eval($.data[0].policyNumber)" scope="default" type="STRING"/>
+
+    <filter xpath="($ctx:STATUS = 'ACCEPTED') or ($ctx:STATUS = 'ISSUED')">
+        <then>
+            <log level="custom">
+                <property name="CHECKPOINT" value="BRANCH_ALREADY_ACCEPTED_OR_ISSUED"/>
+                <property name="STATUS" expression="$ctx:STATUS"/>
+            </log>
+
+            <payloadFactory media-type="json">
+                <format>{
+  "endorsementStatusCode": "$1",
+  "processingStatus": "NO_ACTION_REQUIRED",
+  "message": "Endorsement has already been accepted, no further acceptance is required."
+}</format>
+                <args>
+                    <arg expression="$ctx:STATUS"/>
+                </args>
+            </payloadFactory>
+
+            <property name="HTTP_SC" value="200" scope="axis2"/>
+
+            <call-template target="Common-Log-Template-V1" description="end-log">
+                <with-param name="service" value="endorsement-sapi"/>
+                <with-param name="sequence" value="endorsement-sapi-accept-endorsement-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{fn:concat('Ending accept endorsement (NO ACTION) for endorsementId - ', $ctx:endorsementId)}"/>
+                <with-param name="status" value="END"/>
+            </call-template>
+            <respond/>
+        </then>
+        <else/>
+    </filter>
+
+    <filter xpath="$ctx:STATUS = 'VALIDATED'">
+        <then>
+            <log level="custom">
+                <property name="CHECKPOINT" value="BRANCH_VALIDATED"/>
+                <property name="STATUS" expression="$ctx:STATUS"/>
+            </log>
+
+            <payloadFactory media-type="json">
+                <format>{"$set":{"endorsementStatusCode":"ACCEPTED"}}</format>
+            </payloadFactory>
+            <property name="endorsementUpdatePayload" expression="json-eval($)" scope="default" type="STRING"/>
+
+            <mongodb.updateOne configKey="MongoDB-connection-endorsement">
+                <collection>endorsement</collection>
+                <query>{$ctx:endorsementQuery}</query>
+                <update>{$ctx:endorsementUpdatePayload}</update>
+                <upsert>false</upsert>
+                <responseVariable>acceptEndorsementUpdateResult</responseVariable>
+                <overwriteBody>true</overwriteBody>
+            </mongodb.updateOne>
+
+            <property name="MODIFIED_COUNT" expression="json-eval($.modifiedCount)" scope="default" type="STRING"/>
+
+            <log level="custom">
+                <property name="CHECKPOINT" value="AFTER_MONGO_UPDATE_ENDORSEMENT"/>
+                <property name="matchedCount" expression="json-eval($.matchedCount)"/>
+                <property name="modifiedCount" expression="$ctx:MODIFIED_COUNT"/>
+            </log>
+
+            <filter xpath="$ctx:MODIFIED_COUNT != '0'">
+                <then>
+                    <mongodb.find configKey="MongoDB-connection-endorsement">
+                        <collection>endorsement</collection>
+                        <query>{$ctx:endorsementQuery}</query>
+                        <responseVariable>endorsementAfterUpdateResult</responseVariable>
+                        <overwriteBody>true</overwriteBody>
+                    </mongodb.find>
+
+                    <property name="REFIND_FOUND" expression="json-eval($.found)" scope="default" type="STRING"/>
+                    <property name="REFIND_COUNT" expression="json-eval($.count)" scope="default" type="STRING"/>
+
+                    <log level="custom">
+                        <property name="CHECKPOINT" value="AFTER_REFIND_ENDORSEMENT"/>
+                        <property name="found" expression="$ctx:REFIND_FOUND"/>
+                        <property name="count" expression="$ctx:REFIND_COUNT"/>
+                        <property name="firstId" expression="json-eval($.data[0].endorsementId)"/>
+                        <property name="statusAfterRefind" expression="json-eval($.data[0].endorsementStatusCode)"/>
+                    </log>
+
+                    <filter xpath="($ctx:REFIND_FOUND = 'false') or ($ctx:REFIND_COUNT = '0')">
+                        <then>
+                            <propertyGroup description="error details">
+                                <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                                <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                                <property value="endorsement not found for the given endorsementId" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                            </propertyGroup>
+
+                            <call-template description="Error Log" target="Common-Log-Template-V1">
+                                <with-param name="service" value="endorsement-sapi"/>
+                                <with-param name="sequence" value="endorsement-sapi-accept-endorsement-sequence"/>
+                                <with-param name="level" value="INFO"/>
+                                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                                <with-param name="status" value="ERROR"/>
+                            </call-template>
+
+                            <sequence key="endorsement-sapi-fault-sequence"/>
+                        </then>
+                        <else>
+                            <property name="policyQuery"
+                                      expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:POLICY_NUMBER, '&quot;}')"
+                                      scope="default"
+                                      type="STRING"/>
+
+                            <script language="js"><![CDATA[
+var res = mc.getPayloadJSON();
+var doc = (res && res.data && res.data.length > 0) ? res.data[0] : {};
+
+var endorseForPolicy = JSON.parse(JSON.stringify(doc));
+if (endorseForPolicy && endorseForPolicy.policyNumber) delete endorseForPolicy.policyNumber;
+if (endorseForPolicy && endorseForPolicy._id) delete endorseForPolicy._id;
+
+var policyUpdate = {
+  "$set": {
+    "policyStatusCode": "ENDORSEMENT_ACCEPTED",
+    "endorsements": endorseForPolicy
+  }
+};
+
+mc.setProperty("POLICY_UPDATE_PAYLOAD", JSON.stringify(policyUpdate));
+]]></script>
+
+                            <mongodb.updateOne configKey="MongoDB-connection-endorsement">
+                                <collection>policies</collection>
+                                <query>{$ctx:policyQuery}</query>
+                                <update>{$ctx:POLICY_UPDATE_PAYLOAD}</update>
+                                <upsert>false</upsert>
+                                <responseVariable>acceptPolicyUpdateResult</responseVariable>
+                                <overwriteBody>false</overwriteBody>
+                            </mongodb.updateOne>
+
+                            <log level="custom">
+                                <property name="CHECKPOINT" value="AFTER_MONGO_UPDATE_POLICY"/>
+                            </log>
+
+                            <script language="js"><![CDATA[
+var res2 = mc.getPayloadJSON();
+var doc2 = (res2 && res2.data && res2.data.length > 0) ? res2.data[0] : {};
+if (doc2 && doc2._id) delete doc2._id;
+mc.setPayloadJSON(doc2);
+]]></script>
+
+                            <property name="HTTP_SC" value="200" scope="axis2"/>
+
+                            <call-template target="Common-Log-Template-V1" description="end-log">
+                                <with-param name="service" value="endorsement-sapi"/>
+                                <with-param name="sequence" value="endorsement-sapi-accept-endorsement-sequence"/>
+                                <with-param name="level" value="INFO"/>
+                                <with-param name="message" value="{fn:concat('Ending accept endorsement (ACCEPTED) for endorsementId - ', $ctx:endorsementId)}"/>
+                                <with-param name="status" value="END"/>
+                            </call-template>
+                            <respond/>
+                        </else>
+                    </filter>
+                </then>
+                <else>
+                    <property name="HTTP_SC" value="200" scope="axis2"/>
+                    <respond/>
+                </else>
+            </filter>
+        </then>
+        <else/>
+    </filter>
+
+    <log level="custom">
+        <property name="CHECKPOINT" value="BRANCH_INVALID_STATUS"/>
+        <property name="STATUS" expression="$ctx:STATUS"/>
+    </log>
+
+    <property name="HTTP_SC" value="400" scope="axis2"/>
+    <payloadFactory media-type="json">
+        <format>{
+  "errorCode": "ENDORSEMENT_INVALID_STATUS",
+  "message": "Endorsement cannot be accepted when the endorsementStatusCode is not VALIDATED."
+}</format>
+    </payloadFactory>
+
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="endorsement-sapi"/>
+        <with-param name="sequence" value="endorsement-sapi-accept-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Ending accept endorsement (INVALID STATUS) for endorsementId - ', $ctx:endorsementId)}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+    <respond/>
+</sequence>

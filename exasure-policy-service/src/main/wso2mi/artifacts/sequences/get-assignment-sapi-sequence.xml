@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-assignment-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="get-assignment-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating get-assignment-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="claimId" expression="get-property('uri.var.claimId')"/>
+    <log level="custom">
+        <property name="INFO" value="Starting get_assignment_sequence"/>
+        <property name="claimId" expression="$ctx:claimId"/>
+    </log>    
+    <property name="claimId" expression="get-property('claimId')"/>
+    <property name="AssignmentQuery" type="STRING" expression="fn:concat('{&quot;claimId&quot;:&quot;', $ctx:claimId, '&quot;}')"/>    
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Get specific assignment Query++++++++</message>
+        <property name="AssignmentQuery" type="STRING" expression="fn:concat('{&quot;claimId&quot;:&quot;', $ctx:claimId, '&quot;}')"/>    
+    </log>
+    <mongodb.findOne configKey="claim-assignment-sapi-MongoDB">
+        <collection>claimsAssignments</collection>
+        <query>{$ctx:AssignmentQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>mongodb_findOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Get specific assignment Mongo Response++++++++</message>
+    </log>    
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+        <then>
+            <script language="js"><![CDATA[
+                var payload = mc.getPayloadJSON();
+                if (payload && payload.found && payload.data) {
+                    
+                        delete payload.data._id;
+                    
+                    mc.setPayloadJSON(payload.data);
+                } else {
+                    mc.setPayloadJSON([]);
+                }
+            ]]></script>
+        </then>
+        <else>  
+            <propertyGroup description="error details">
+                <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="No details found for the provided assignment" name="ERROR_DETAIL" scope="default" type="STRING"/>
+                <property name="HTTP_SC" scope="axis2" type="STRING" action="set" value="404"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-api"/>
+                <with-param name="sequence" value="get-assignment-sapi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+            <sequence key="claim-assignment-sapi-fault-sequence"/>                     
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="get-assignment-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended get-assignment-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template> 
+</sequence>

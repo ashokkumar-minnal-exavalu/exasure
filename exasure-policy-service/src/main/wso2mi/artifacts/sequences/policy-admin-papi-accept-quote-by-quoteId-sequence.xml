@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="policy-admin-papi-accept-quote-by-quoteId-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <property name="HTTP_METHOD" scope="axis2" value="GET"/>
+    <property name="quoteId" expression="get-property('uri.var.quoteId')"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" expression="concat('/quote/', $ctx:quoteId,)"/>
+    <call>
+        <endpoint key="quote-sapi-restEndpoint"/>
+    </call>
+    <property name="status" scope="default" type="STRING" expression="json-eval($.quote.status)"/>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>LOGSTATUS</message>
+        <property name="STAT" expression="get-property('status')"/>
+    </log>
+    <filter regex="^DRAFT$" source="get-property('status')">
+        <then>
+            <!-- Success Route -->
+            <log level="full">
+                <property name="Route" value="SUCCESS - DRAFT Status"/>
+            </log>
+            <property name="HTTP_METHOD" scope="axis2" value="PATCH"/>
+            <property name="REST_URL_POSTFIX" scope="axis2" expression="concat('/quote/', $ctx:quoteId,'/accept')"/>
+            <call>
+                <endpoint key="quote-sapi-restEndpoint"/>
+            </call>
+            <!-- Call success endpoint here -->
+        </then>
+        <else>
+            <!-- Failure Route -->
+            <log level="full">
+                <property name="Route" value="FAILURE - Not DRAFT"/>
+            </log>
+            <!-- Call failure endpoint here -->
+        </else>
+    </filter>
+    <payloadFactory media-type="json">
+        <format>
+            {
+            "quote": {
+            "quoteId": "$1"
+            }
+            }
+        </format>
+        <args>
+            <arg expression="get-property('quoteId')"/>
+        </args>
+    </payloadFactory>
+   <log level="full">
+                <property name="PolicyResp" value="BeforeCreation"/>
+    </log>
+    <property name="HTTP_METHOD" scope="axis2" value="POST"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" value="/api/policy"/>
+    <call>
+        <endpoint key="policy-sapi-restEndpoint"/>
+    </call>
+    
+    <log level="full">
+                <property name="PolicyResp" value="afterCreation"/>
+    </log>
+    <propertyGroup description="emailProperties">
+        <property name="messageType" value="text/html" scope="axis2"/>
+        <property name="ContentType" value="text/html" scope="axis2"/>
+        <property name="mail.smtp.from" value="noreply@exasure.com"/>
+        <property name="mail.smtp.to" value="ravi.ram6667@gmail.com"/>
+        <property name="mail.smtp.subject" scope="axis2" type="STRING" expression="concat('Claim Update - ', $ctx:claimId)"/>
+    </propertyGroup>
+    <script language="js"><![CDATA[
+
+// -----------------------------------
+// Parse backend JSON response
+// -----------------------------------
+var responsePayload = mc.getPayloadJSON();
+
+// Safe extraction
+var policyNumber = responsePayload.policyNumber || "";
+var quoteId = (responsePayload.quote && responsePayload.quote.quoteId) 
+                ? responsePayload.quote.quoteId 
+                : mc.getProperty("quoteId");
+
+var termStartDate = responsePayload.termStartDate || "";
+var termEndDate = responsePayload.termEndDate || "";
+
+// -----------------------------------
+// Format current date
+// -----------------------------------
+function formatDate(dateObj) {
+    return dateObj.toLocaleString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+    });
+}
+
+var nowFormatted = formatDate(new Date());
+
+// -----------------------------------
+// Subject
+// -----------------------------------
+var subject = "Policy Created - " + policyNumber;
+mc.setProperty("mail.smtp.subject", subject);
+mc.setProperty("Email_Subject", subject);
+
+// -----------------------------------
+// HTML Body
+// -----------------------------------
+var emailBody =
+'<!doctype html>' +
+'<html lang="en">' +
+'<head>' +
+'  <meta charset="utf-8">' +
+'  <meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+'  <style>' +
+'    body { margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; background:#f4f6f8; color:#333; }' +
+'    .container { max-width:700px; margin:20px auto; background:#fff; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15); }' +
+'    .header { background:#0077b6; padding:24px; text-align:center; color:#fff; font-size:26px; font-weight:bold; }' +
+'    .subheader { text-align:center; padding:10px 0; font-size:14px; color:#dbeeff; }' +
+'    .body { padding:30px; font-size:15px; line-height:1.6; }' +
+'    .section-title { font-size:20px; font-weight:bold; margin-bottom:20px; text-align:center; }' +
+'    .info-box { background:#eaf4ff; border-left:5px solid #0077b6; padding:15px; margin:20px 0; border-radius:4px; }' +
+'    .footer { padding:20px; text-align:center; font-size:12px; color:#9aa7bf; }' +
+'  </style>' +
+'</head>' +
+'<body>' +
+'  <div class="container">' +
+'    <div class="header">Policy Created - ' + policyNumber + '</div>' +
+'    <div class="body">' +
+'      <p>' + nowFormatted + '</p>' +
+'      <p>Dear User,</p>' +
+'      <p>We are pleased to inform you that your insurance policy has been <strong>successfully created</strong> by <strong>Exasure IIC</strong>.</p>' +
+'      <p>Our system has generated a new policy record based on your quote submission and the provided information.</p>' +
+'      <div class="info-box">' +
+'        <p><strong>Quote ID:</strong> ' + quoteId + '</p>' +
+'        <p><strong>Policy ID:</strong> ' + policyNumber + '</p>' +
+'        <p><strong>Policy Start Date:</strong> ' + termStartDate + '</p>' +
+'        <p><strong>Policy End Date:</strong> ' + termEndDate + '</p>' +
+'      </div>' +
+'      <p>Your policy is currently under review by our underwriting team. Once approved, you’ll receive a confirmation email with full policy details and payment instructions.</p>' +
+'      <div style="margin:25px 0; text-align:center;">' +
+'        <a href="http://localhost:5173/home" style="background:#0077b6; color:#ffffff; padding:12px 22px; text-decoration:none; font-size:15px; font-weight:bold; border-radius:6px; display:inline-block;">View Policy Status</a>' +
+'      </div>' +
+'      <p>Thank you for choosing <strong>Exasure IIC</strong>. We appreciate your trust and look forward to providing you with reliable insurance protection.</p>' +
+'      <p>Sincerely,<br><br>' +
+'      <strong>Exasure IIC</strong><br>' +
+'      Policy & Customer Support</p>' +
+'    </div>' +
+'    <div class="footer">' +
+'      Exasure IIC | http://localhost:5173/home<br>' +
+'      This is an automated message. Please do not reply.' +
+'    </div>' +
+'  </div>' +
+'</body>' +
+'</html>';
+
+mc.setProperty("Email_Body", emailBody);
+
+]]></script>
+    <sequence key="policy-admin-papi-send-email-sequence"/>
+    <!-- Reset response content type -->
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="ContentType" value="application/json" scope="axis2"/>
+    <property name="Content-Type" value="application/json" scope="transport"/>
+    <respond/>
+</sequence>

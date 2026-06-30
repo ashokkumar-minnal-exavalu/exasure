@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<localEntry key="HTTP-quote-papi-connection" xmlns="http://ws.apache.org/ns/synapse">
+  <http.init>
+    <connectionType>HTTP</connectionType>
+    <baseUrl>http://localhost:8290/exasure-api/quote-papi</baseUrl>
+    <authType>None</authType>
+    <timeoutAction>Never</timeoutAction>
+    <retryCount>0</retryCount>
+    <retryDelay>0</retryDelay>
+    <suspendInitialDuration>-1</suspendInitialDuration>
+    <suspendProgressionFactor>1</suspendProgressionFactor>
+    <name>HTTP-quote-papi-connection</name>
+  </http.init>
+</localEntry>

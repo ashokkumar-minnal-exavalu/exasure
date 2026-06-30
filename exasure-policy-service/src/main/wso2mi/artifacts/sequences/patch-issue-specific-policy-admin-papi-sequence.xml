@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="patch-issue-specific-policy-admin-papi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyNumber" expression="get-property('uri.var.policyNumber')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-api"/>
+        <with-param name="sequence" value="patch-issue-specific-policy-admin-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started patch-issue-specific-policy-admin-papi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>   
+    <log level="custom">
+        <property name="PolicyNumber" expression="$ctx:policyNumber"/>
+    </log>
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/policy/',  get-property('policyNumber'), '/issuance')"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="policy-sapi-restEndpoint"/>
+    </call>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Response from Issue policy SAPI</message>
+    </log>
+    <log level="custom">
+        <property description="statusCode" expression="$axis2:HTTP_SC" name="statusCode PAPI Received+++++" scope="default" type="STRING"/>
+    </log>
+
+
+    <property description="statusCode" expression="$axis2:HTTP_SC" name="statusCode" scope="default" type="STRING"/>
+    <filter xpath="$ctx:statusCode = '200'">
+        <then>
+            <script language="js"><![CDATA[
+
+                var payload = mc.getPayloadJSON();
+
+                // =========================
+                // removeNull Function
+                // =========================
+                function removeNull(v) {
+
+                    if (v === null || v === undefined) {
+                        return null;
+                    }
+
+                    if (Array.isArray(v)) {
+                        return v
+                            .map(removeNull)
+                            .filter(function(item) {
+                                return item !== null &&
+                                    !(typeof item === "object" && Object.keys(item).length === 0);
+                            });
+                    }
+
+                    if (typeof v === "object") {
+                        var newObj = {};
+                        for (var key in v) {
+                            var value = v[key];
+                            if (value !== null && value !== "" && value !== undefined) {
+                                var cleaned = removeNull(value);
+                                if (cleaned !== null &&
+                                    !(typeof cleaned === "object" && Object.keys(cleaned).length === 0)) {
+                                    newObj[key] = cleaned;
+                                }
+                            }
+                        }
+                        return newObj;
+                    }
+
+                    return v;
+                }
+
+                // =========================
+                // mapPolicy Function
+                // =========================
+                function mapPolicy(p) {
+
+                    var result = {};
+
+                    // ---------------- Parties ----------------
+                    if (p.parties && p.parties.length > 0) {
+                        result.parties = p.parties.map(function(pt) {
+                            return removeNull({
+                                partyIdentifier: pt.partyIdentifier,
+                                roleTypeCode: pt.roleTypeCode,
+                                partyName: pt.partyName
+                            });
+                        });
+                    }
+
+                    // ---------------- Quote ----------------
+                    if (p.quote) {
+                        result.quote = removeNull({
+                            quoteId: p.quote.quoteId,
+                            quoteIntimationDate: p.quote.quoteIntimationDate,
+                            status: p.quote.status
+                        });
+                    }
+
+                    // ---------------- Policy Details ----------------
+                    var simpleFields = [
+                        "policyNumber","policyAcceptDate","policyissuedDate",
+                        "policyCancellationType","policyCancellationComments",
+                        "policyCancelledDate","policyStatusCode","productCode",
+                        "termStartDate","termEndDate","policyPeriod",
+                        "transactionIdentifier","transactionTypeCode",
+                        "currentPolicyTermIdentifier","transactionStatusCode",
+                        "termStatusCode"
+                    ];
+
+                    simpleFields.forEach(function(field){
+                        if (p[field] !== null && p[field] !== "" && p[field] !== undefined) {
+                            result[field] = p[field];
+                        }
+                    });
+
+                    // ---------------- Drivers ----------------
+                    if (p.driverDetails && p.driverDetails.length > 0) {
+                        result.driverDetails = p.driverDetails.map(function(d){
+                            return removeNull({
+                                driverIdentifier: d.driverIdentifier,
+                                driverName: d.driverName,
+                                driverLicenseNumber: d.driverLicenseNumber,
+                                driverLicenseJurisdictionCode: d.driverLicenseJurisdictionCode,
+                                driverLicenseJurisdictionZipCode: d.driverLicenseJurisdictionZipCode,
+                                drivingExperienceYearCount: d.drivingExperienceYearCount,
+                                yearsLicensedCount: d.yearsLicensedCount,
+                                accidentCount: d.accidentCount,
+                                violationCount: d.violationCount
+                            });
+                        });
+                    }
+
+                    // ---------------- Underwriting Questions ----------------
+                    if (p.underWritingQuestions && p.underWritingQuestions.length > 0) {
+                        result.underWritingQuestions = p.underWritingQuestions.map(function(u){
+                            return removeNull({
+                                atfaultClaimsPast5Years: u.atfaultClaimsPast5Years,
+                                insuranceFraudConviction: u.insuranceFraudConviction,
+                                "10YearFelonyConviction": u["10YearFelonyConviction"],
+                                runThirdPartyReports: u.runThirdPartyReports
+                            });
+                        });
+                    }
+
+                    // ---------------- Insurable Objects ----------------
+                    if (p.insurableObjects && p.insurableObjects.length > 0) {
+                        result.insurableObjects = p.insurableObjects.map(function(io){
+                            return removeNull({
+                                insurableObjectIdentifier: io.insurableObjectIdentifier,
+                                insurableObjectTypeCode: io.insurableObjectTypeCode,
+                                vehicle: removeNull(io.vehicle),
+                                coverages: removeNull(io.coverages)
+                            });
+                        });
+                    }
+
+                    // ---------------- Coverages ----------------
+                    if (p.coverages && p.coverages.length > 0) {
+                        result.coverages = p.coverages.map(function(c){
+                            return removeNull({
+                                insurableObjectIdentifier: c.insurableObjectIdentifier,
+                                coverageIdentifier: c.coverageIdentifier,
+                                coverageName: c.coverageName,
+                                limit: removeNull(c.limit),
+                                deductible: removeNull(c.deductible)
+                            });
+                        });
+                    }
+
+                    // ---------------- Pricing ----------------
+                    if (p.pricing) {
+                        result.pricing = removeNull({
+                            totalPremium: p.pricing.totalPremium,
+                            grossFees: p.pricing.grossFees,
+                            amounts: p.pricing.amounts ? p.pricing.amounts.map(removeNull) : null
+                        });
+                    }
+
+                    // ---------------- Documents ----------------
+                    if (p.documents && p.documents.length > 0) {
+                        result.documents = p.documents.map(function(d, i){
+                            return removeNull({
+                                documentId: i + 1,
+                                binaryData: d.binaryData,
+                                documentTypeCode: d.documentTypeCode,
+                                displayName: d.displayName,
+                                "type": d["type"],
+                                generatedDate: d.generatedDate
+                            });
+                        });
+                    }
+
+                    // ---------------- Billing ----------------
+                    if (p.billing) {
+                        result.billing = removeNull({
+                            invoices: p.billing.invoices ?
+                                    p.billing.invoices.map(removeNull) : null
+                        });
+                    }
+
+                    // ---------------- Renewals ----------------
+                    if (p.renewals && p.renewals.length > 0) {
+                        result.renewals = p.renewals.map(function(r){
+                            return removeNull({
+                                renewalId: r.renewalId,
+                                policyTermIdentifier: r.policyTermIdentifier,
+                                policyNumber: r.policyNumber,
+                                termSequenceNumber: r.termSequenceNumber,
+                                transactionTypeCode: r.transactionTypeCode,
+                                transactionIdentifier: r.transactionIdentifier,
+                                transactionStatusCode: r.transactionStatusCode,
+                                termStatusCode: r.termStatusCode,
+                                termStartDate: r.termStartDate,
+                                termEndDate: r.termEndDate,
+                                policyPeriod: r.policyPeriod,
+                                quote: removeNull(r.quote),
+                                insurableObjects: r.insurableObjects ?
+                                                r.insurableObjects.map(removeNull) : null,
+                                driverDetails: r.driverDetails,
+                                pricing: removeNull(r.pricing),
+                                documents: r.documents,
+                                billing: r.billing
+                            });
+                        });
+                    }
+
+                    // ---------------- Reinstatements ----------------
+                    if (p.reinstatements && p.reinstatements.length > 0) {
+                        result.reinstatements = p.reinstatements.map(function(r){
+                            return removeNull({
+                                policyNumber: r.policyNumber,
+                                quoteId: r.quoteId,
+                                reinstatementId: r.reinstatementId,
+                                policyStatusCode: r.policyStatusCode,
+                                policyEvent: removeNull(r.policyEvent),
+                                reinstateTermStartDate: r.reinstateTermStartDate,
+                                reinstateTermEndDate: r.reinstateTermEndDate,
+                                pricing: removeNull(r.pricing)
+                            });
+                        });
+                    }
+
+                    return removeNull(result);
+                }
+
+                // =========================
+                // Final Payload Handling
+                // =========================
+                if (Array.isArray(payload)) {
+                    mc.setPayloadJSON(payload.map(mapPolicy));
+                } else {
+                    mc.setPayloadJSON(mapPolicy(payload));
+                }
+
+            ]]></script>
+
+
+            <!-- ========================================= -->
+            <!-- Email Properties -->
+            <!-- ========================================= -->
+            <!-- <propertyGroup description="emailProperties">
+                <property name="messageType" value="text/html" scope="axis2"/>
+                <property name="ContentType" value="text/html" scope="axis2"/>
+                <property name="mail.smtp.from" value="exavaluinsuranceaccelarator@gmail.com"/>
+                <property name="mail.smtp.to"
+                        value="rishi.puri@exavalu.com"/>
+
+                <property name="mail.smtp.subject"
+                        scope="axis2"
+                        type="STRING"
+                        expression="concat('Policy Issued For Policy ', $ctx:policyNumber)"/>
+            </propertyGroup> -->
+
+
+            <!-- ========================================= -->
+            <!-- Script Mediator -->
+            <!-- ========================================= -->
+            <script language="js"><![CDATA[
+
+            // -----------------------------------
+            // Parse Backend JSON
+            // -----------------------------------
+            var responsePayload = mc.getPayloadJSON();
+
+            // Safe extraction
+            var policyNumber   = responsePayload.policyNumber || "";
+            var quoteId        = (responsePayload.quote && responsePayload.quote.quoteId)
+                                    ? responsePayload.quote.quoteId
+                                    : "";
+
+            var termStartDate  = responsePayload.termStartDate || "";
+            var termEndDate    = responsePayload.termEndDate || "";
+
+            // Store for subject usage
+            mc.setProperty("policyNumber", policyNumber);
+
+            // -----------------------------------
+            // Format Current Date (Same as DWL)
+            // -----------------------------------
+            function formatDate(dateObj) {
+                return dateObj.toLocaleString("en-US", {
+                    month: "long",
+                    day: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true
+                });
+            }
+
+            var nowFormatted = formatDate(new Date());
+
+            // -----------------------------------
+            // Subject Override (Optional)
+            // -----------------------------------
+            var subject = "Policy Issued For Policy " + policyNumber;
+            mc.setProperty("mail.smtp.subject", subject);
+            mc.setProperty("Email_Subject", subject);
+
+            // -----------------------------------
+            // HTML Body
+            // -----------------------------------
+            var emailBody =
+            '<!doctype html>' +
+            '<html lang="en">' +
+            '<head>' +
+            '  <meta charset="utf-8">' +
+            '  <meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+            '  <style>' +
+            '    body { margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; background:#f4f6f8; color:#333; }' +
+            '    .container { max-width:700px; margin:20px auto; background:#fff; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15); }' +
+            '    .header { background:#0077b6; padding:24px; text-align:center; color:#fff; font-size:26px; font-weight:bold; }' +
+            '    .body { padding:30px; font-size:15px; line-height:1.6; }' +
+            '    .info-box { background:#eaf4ff; border-left:5px solid #0077b6; padding:15px; margin:20px 0; border-radius:4px; }' +
+            '    .footer { padding:20px; text-align:center; font-size:12px; color:#9aa7bf; }' +
+            '  </style>' +
+            '</head>' +
+            '<body>' +
+            '  <div class="container">' +
+            '    <div class="header">Policy Issued - ' + policyNumber + '</div>' +
+            '    <div class="body">' +
+            '      <p>' + nowFormatted + '</p>' +
+            '      <p>Dear User,</p>' +
+            '      <p>We are pleased to inform you that your insurance policy has been <strong>successfully Issued</strong> by <strong>Exasure IIC</strong>.</p>' +
+            '      <p>Our system has generated a new policy record based on your quote submission and the provided information.</p>' +
+            '      <div class="info-box">' +
+            '        <p><strong>Quote ID:</strong> ' + quoteId + '</p>' +
+            '        <p><strong>Policy ID:</strong> ' + policyNumber + '</p>' +
+            '        <p><strong>Policy Start Date:</strong> ' + termStartDate + '</p>' +
+            '        <p><strong>Policy End Date:</strong> ' + termEndDate + '</p>' +
+            '      </div>' +
+            '      <div style="margin:25px 0; text-align:center;">' +
+            '        <a href="http://localhost:5173/home" style="background:#0077b6; color:#ffffff; padding:12px 22px; text-decoration:none; font-size:15px; font-weight:bold; border-radius:6px; display:inline-block;">View Policy Status</a>' +
+            '      </div>' +
+            '      <p>Thank you for choosing <strong>Exasure IIC</strong>. We appreciate your trust and look forward to providing you with reliable insurance protection.</p>' +
+            '      <p>Sincerely,<br><br>' +
+            '      <strong>Exasure IIC</strong><br>' +
+            '      Policy & Customer Support</p>' +
+            '    </div>' +
+            '    <div class="footer">' +
+            '      Exasure IIC | http://localhost:5173/home<br>' +
+            '      This is an automated message. Please do not reply.' +
+            '    </div>' +
+            '  </div>' +
+            '</body>' +
+            '</html>';
+
+            // Set email body
+            mc.setProperty("Email_Body", emailBody);
+
+            ]]></script>
+
+
+            <!-- ========================================= -->
+            <!-- Call Email Send Sequence -->
+            <!-- ========================================= -->
+            <sequence key="policy-admin-papi-send-email-sequence"/>
+
+
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property expression="json-eval($.errors[0].errorCode)" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorMessage)" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property expression="json-eval($.errors[0].errorDescription)" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </else>
+    </filter>
+    <!-- ========================= -->
+    <!-- 5. Async Email Section   -->
+    <!-- ========================= -->
+    <!-- <clone continueParent="true">
+        <target>
+            <sequence>
+
+                <script language="js"><![CDATA[
+                    var p = mc.getPayloadJSON();
+
+                    var emailBody =
+                    "<html><body>" +
+                    "<h2>Policy Issued - " + p.policyNumber + "</h2>" +
+                    "<p>Quote ID: " + (p.quote ? p.quote.quoteId : "") + "</p>" +
+                    "<p>Start Date: " + p.termStartDate + "</p>" +
+                    "<p>End Date: " + p.termEndDate + "</p>" +
+                    "</body></html>";
+
+                    mc.setProperty("EMAIL_BODY", emailBody);
+                ]]></script>
+
+                <property name="messageType" value="text/html" scope="axis2"/>
+
+                <send>
+                    <endpoint>
+                        <address uri="mailto:exavaluinsuranceaccelarator@gmail.com"/>
+                    </endpoint>
+                </send>
+
+            </sequence>
+        </target>
+    </clone> -->
+
+
+
+
+    
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-api"/>
+        <with-param name="sequence" value="patch-issue-specific-policy-admin-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended patch-issue-specific-policy-admin-papi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

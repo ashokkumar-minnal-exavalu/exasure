@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="update-agent-statementsStatus-sequence" trace="disable"
+          xmlns="http://ws.apache.org/ns/synapse">
+
+    <log level="custom">
+        <property name="INFO" value="Starting update-agent-statementsStatus-sequence"/>
+        <property name="quoteId" expression="$ctx:quoteId"/>
+        <property name="UPDATE_REQUEST" expression="json-eval($)"/>
+    </log>
+
+    <propertyGroup description="clearOldHttpContext">
+        <property name="TRANSPORT_HEADERS" scope="axis2" action="remove"/>
+        <property name="HTTP_METHOD" scope="axis2" action="remove"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" action="remove"/>
+        <property name="QUERY_STRING" scope="axis2" action="remove"/>
+        <property name="REST_SUB_REQUEST_PATH" scope="axis2" action="remove"/>
+        <property name="POST_TO_URI" scope="axis2" action="remove"/>
+        <property name="messageType" scope="axis2" action="remove"/>
+        <property name="ContentType" scope="axis2" action="remove"/>
+        <property name="NO_ENTITY_BODY" scope="axis2" action="remove"/>
+    </propertyGroup>
+
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="PATCH"/>
+    <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="POST_TO_URI" scope="axis2" type="STRING" value="true"/>
+
+    <property name="uri.var.quoteId"
+              expression="$ctx:quoteId"
+              scope="default"
+              type="STRING"/>
+
+    <call blocking="true">
+        <endpoint>
+            <http method="patch"
+                  uri-template="http://localhost:8290/exasure-api/agent-compensation-sapi-api/agents/{uri.var.quoteId}/agent-statements/status"/>
+        </endpoint>
+    </call>
+
+    <log level="custom">
+        <property name="UPDATE_STATEMENT_RESPONSE" expression="json-eval($)"/>
+        <property name="INFO" value="Ending update-agent-statementsStatus-sequence"/>
+    </log>
+
+</sequence>

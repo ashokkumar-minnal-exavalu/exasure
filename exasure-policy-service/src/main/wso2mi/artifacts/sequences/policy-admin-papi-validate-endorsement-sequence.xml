@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="policy-admin-papi-validate-endorsement-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+  <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="requestPayload" expression="json-eval($)"/>
+        <property name="endorsementId" expression="get-property('uri.var.endorsementId')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-validate-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Start policy-admin-papi-validate-endorsement-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/endorsements/', get-property('endorsementId'))"/>
+    </propertyGroup>
+    <call description="fetch documents by endorsementid">
+        <endpoint key="endorsement-sapi-restEndpoint"/>
+    </call>
+<property description="statusCode" expression="$axis2:HTTP_SC" name="statusCode" scope="default" type="STRING"/>
+<filter xpath="get-property('statusCode')='200'">
+    <then>
+<property name="status" scope="default" type="STRING" expression="json-eval($.data[0].endorsementStatusCode)"/>
+<filter xpath="get-property('status') = 'ACCEPTED' or get-property('status') = 'VALIDATED' or get-property('status') = 'ISSUED'">
+        <then>
+	<payloadFactory description="Response poayload" media-type="json" template-type="Default">
+		<format>
+                            {
+                            "endorsementStatusCode": "$1",
+                            "processingStatus": "NO_ACTION_REQUIRED",
+                            "message": "Endorsement has already been validated, no further validation is required."
+                            }
+		</format>
+                        <args>
+                            <arg expression="$.data[0].endorsementStatusCode" evaluator="json"/>
+                        </args>
+                    </payloadFactory>
+                </then>
+                <else>
+<log level="custom">
+   <property name="DEBUG_PAYLOAD********************************" expression="json-eval($)"/>
+</log>
+<script language="js"><![CDATA[
+
+var root = mc.getPayloadJSON();
+
+// Validate structure
+if (!root || !root.data || root.data.length === 0) {
+    throw "Invalid DB response structure";
+}
+
+var payload = root.data[0];
+
+function num(v){
+    return (v !== null && v !== undefined) ? Number(v) : 0;
+}
+
+// =============================
+// Rates & constants
+// =============================
+var vehicleRate        = 0.025;
+var ownDamageRate      = 0.012;
+var accidentRate       = 0.05;
+var violationRate      = 0.03;
+var highMileageRate    = 0.05;
+var mileageLimit       = 12000;
+var prorata            = 0.75;
+var fee                = 500;
+var minDriverSurcharge = 1000;
+
+var addedVehiclePremium = 0;
+var updatedVehiclePremium = 0;
+var addedCoveragePremium = 0;
+
+// =============================
+// Added Vehicles
+// =============================
+var addedVehicles =
+    (payload.changes &&
+     payload.changes.insurableObjects &&
+     payload.changes.insurableObjects.added) || [];
+
+addedVehicles.forEach(function(v){
+
+    var value = num(v.vehicle && v.vehicle.vehicleValue);
+
+    addedVehiclePremium += value * vehicleRate;
+    addedVehiclePremium += value * ownDamageRate;
+
+    if(num(v.vehicle && v.vehicle.annualMileage) > mileageLimit){
+        addedVehiclePremium += value * highMileageRate;
+    }
+});
+
+// =============================
+// Updated Vehicles
+// =============================
+var updatedVehicles =
+    (payload.changes &&
+     payload.changes.insurableObjects &&
+     payload.changes.insurableObjects.updated) || [];
+
+updatedVehicles.forEach(function(v){
+
+    if(v.fieldValues && v.fieldValues.vehicle){
+
+        var value = num(v.fieldValues.vehicle.vehicleValue);
+
+        updatedVehiclePremium += value * vehicleRate;
+
+        if(num(v.fieldValues.vehicle.annualMileage) > mileageLimit){
+            updatedVehiclePremium += value * highMileageRate;
+        }
+    }
+
+    if(v.fieldValues &&
+       v.fieldValues.coverages &&
+       v.fieldValues.coverages.added){
+
+        v.fieldValues.coverages.added.forEach(function(){
+            addedCoveragePremium += 500000 * ownDamageRate;
+        });
+    }
+
+});
+
+var basePremium =
+    addedVehiclePremium +
+    updatedVehiclePremium +
+    addedCoveragePremium;
+
+// =============================
+// Risky Drivers 
+// =============================
+var riskyDrivers = 0;
+
+var driversAdded =
+    (payload.changes &&
+     payload.changes.drivers &&
+     payload.changes.drivers.added) || [];
+
+var driversUpdated =
+    (payload.changes &&
+     payload.changes.drivers &&
+     payload.changes.drivers.updated) || [];
+
+// Added drivers also trigger surcharge
+driversAdded.forEach(function(d){
+
+    var accident = num(d.accidentCount);
+    var violation = num(d.violationCount);
+
+    if(accident > 0 || violation > 0){
+        riskyDrivers++;
+    }
+    else{
+        riskyDrivers++;
+    }
+});
+
+
+driversUpdated.forEach(function(d){
+
+    var accident = num(d.fieldValues && d.fieldValues.accidentCount);
+    var violation = num(d.fieldValues && d.fieldValues.violationCount);
+
+    if(accident > 0 || violation > 0){
+        riskyDrivers++;
+    }
+    else if(d.fieldValues){
+        riskyDrivers++;
+    }
+});
+
+// =============================
+// Driver Load
+// =============================
+var driverLoad = 0;
+
+if(riskyDrivers > 0){
+    if(basePremium > 0){
+        driverLoad =
+            basePremium *
+            (riskyDrivers * (accidentRate + violationRate));
+    } else {
+        driverLoad =
+            riskyDrivers * minDriverSurcharge;
+    }
+}
+
+var totalPremium =
+    (basePremium + driverLoad) * prorata;
+
+var pricing = {
+    totalPremium: totalPremium,
+    grossFees: fee,
+    amounts: [
+        {
+            amountTypeCode: "PREMIUM",
+            amountValue: Number(totalPremium.toFixed(2)),
+            currencyCode: "USD"
+        },
+        {
+            amountTypeCode: "FEE",
+            amountValue: Number(fee.toFixed(2)),
+            currencyCode: "USD"
+        }
+    ]
+};
+
+// Store for update call
+mc.setProperty("calculatedPricing", JSON.stringify(pricing));
+
+]]></script>
+<payloadFactory media-type="json">
+   <format>
+                            {
+                            "endorsementStatusCode": "VALIDATED",
+                            "pricing": $1,
+                            "assessmentTypeCode": "$2",
+                            "eventTypeCode": "$3",
+                            "eventDate": "$4"
+                            }
+                        </format>
+   <args>
+    <arg evaluator="json" expression="$ctx:calculatedPricing" />
+    <arg evaluator="json" expression="$ctx:requestPayload.assessment.assessmentTypeCode"/>
+    <arg evaluator="json" expression="$ctx:requestPayload.policyEvent.eventTypeCode"/>
+    <arg evaluator="json" expression="$ctx:requestPayload.policyEvent.eventDate"/>
+                        </args>
+                    </payloadFactory>
+<propertyGroup description="inputProperty">
+                        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+                        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/endorsements/', get-property('endorsementId'), '/validate')"/>
+                    </propertyGroup>
+<call description="update validateEndorsement">
+    <endpoint key="endorsement-sapi-restEndpoint"/>
+                    </call>
+</else>
+</filter>
+</then>
+<else>
+<propertyGroup description="error details">
+        <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+        <property value="Not Found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+        <property value="Data not found for the given endorsementId" name="ERROR_DETAIL" scope="default" type="STRING"/>
+</propertyGroup>
+<call-template description="Error Log" target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-validate-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+        <with-param name="status" value="ERROR"/>
+</call-template>
+<sequence key="policy-admin-papi-fault-sequence"/>
+</else>
+</filter>
+<property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="policy-admin-papi"/>
+    <with-param name="sequence" value="policy-admin-papi-validate-endorsement-sequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="Ended policy-admin-papi-validate-endorsement-sequence"/>
+    <with-param name="status" value="End"/>
+</call-template>
+</sequence>

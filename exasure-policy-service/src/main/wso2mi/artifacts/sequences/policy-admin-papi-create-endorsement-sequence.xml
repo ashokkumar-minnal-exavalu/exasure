@@ -1,0 +1,422 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="policy-admin-papi-create-endorsement-sequence"
+          trace="disable"
+          xmlns="http://ws.apache.org/ns/synapse">
+
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="ContentType" value="application/json" scope="axis2"/>
+
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyId" expression="get-property('uri.var.policyId')"/>
+    </propertyGroup>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-create-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating create endorsement"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <script language="js"><![CDATA[
+        var isEmpty = false;
+        try {
+            var req = mc.getPayloadJSON();
+            if (req === null || (typeof req === "object" && Object.keys(req).length === 0)) {
+                isEmpty = true;
+            }
+        } catch (e) {
+            isEmpty = true;
+        }
+        mc.setProperty("IS_EMPTY_BODY", isEmpty ? "true" : "false");
+    ]]></script>
+
+    <filter xpath="$ctx:IS_EMPTY_BODY = 'true'">
+        <then>
+            <payloadFactory media-type="json">
+                <format>{ "errors": [ { "errorCode": "BAD_REQUEST", "errorMessage": "Request body is required", "errorDescription": "Empty request body" } ] }</format>
+                <args/>
+            </payloadFactory>
+            <property name="HTTP_SC" value="400" scope="axis2"/>
+
+            <propertyGroup description="error details">
+                <property name="ERROR_CODE" value="BAD_REQUEST" scope="default" type="STRING"/>
+                <property name="ERROR_MESSAGE" value="Request body is required" scope="default" type="STRING"/>
+                <property name="ERROR_DETAIL" value="Empty request body" scope="default" type="STRING"/>
+            </propertyGroup>
+
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-admin-papi"/>
+                <with-param name="sequence" value="policy-admin-papi-create-endorsement-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </then>
+        <else/>
+    </filter>
+
+    <property name="policyId" expression="get-property('uri.var.policyId')" scope="default" type="STRING"/>
+
+    <enrich>
+        <source type="body" clone="true"/>
+        <target type="property" property="endorsementRequest"/>
+    </enrich>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-create-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Fetching policy details"/>
+        <with-param name="status" value="PROCESSING"/>
+    </call-template>
+
+    <property name="HTTP_METHOD" value="GET" scope="axis2"/>
+    <property name="REST_URL_POSTFIX"
+              expression="fn:concat('/api/', $ctx:policyId)"
+              scope="axis2"
+              type="STRING"/>
+    <property name="Accept" value="application/json" scope="transport"/>
+
+    <call>
+        <endpoint key="policy-papi-restEndpoint"/>
+    </call>
+
+    <property name="statusCode" expression="$axis2:HTTP_SC" scope="default" type="STRING"/>
+
+    <filter xpath="get-property('statusCode')='200'">
+        <then>
+            <script language="js"><![CDATA[
+                try {
+                    var p = mc.getPayloadJSON();
+                    mc.setProperty("policyResponse", JSON.stringify(p));
+                    var ok = p && p.policyNumber;
+                    mc.setProperty("POLICY_FETCH_OK", ok ? "true" : "false");
+                } catch (e) {
+                    mc.setProperty("policyResponse", "{}");
+                    mc.setProperty("POLICY_FETCH_OK", "false");
+                }
+            ]]></script>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property name="ERROR_CODE" value="UPSTREAM_ERROR" scope="default" type="STRING"/>
+                <property name="ERROR_MESSAGE" value="Unable to fetch policy details" scope="default" type="STRING"/>
+                <property name="ERROR_DETAIL"
+                          expression="fn:concat('Policy fetch HTTP status: ', get-property('statusCode'))"
+                          scope="default"
+                          type="STRING"/>
+            </propertyGroup>
+
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-admin-papi"/>
+                <with-param name="sequence" value="policy-admin-papi-create-endorsement-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </else>
+    </filter>
+
+    <filter xpath="$ctx:POLICY_FETCH_OK = 'false'">
+        <then>
+            <payloadFactory media-type="json">
+                <format>{ "errors": [ { "errorCode": "UPSTREAM_ERROR", "errorMessage": "Unable to fetch policy details", "errorDescription": "Policy fetch failed or returned invalid response" } ] }</format>
+                <args/>
+            </payloadFactory>
+            <property name="HTTP_SC" value="502" scope="axis2"/>
+
+            <propertyGroup description="error details">
+                <property name="ERROR_CODE" value="UPSTREAM_ERROR" scope="default" type="STRING"/>
+                <property name="ERROR_MESSAGE" value="Unable to fetch policy details" scope="default" type="STRING"/>
+                <property name="ERROR_DETAIL" value="Policy fetch failed or returned invalid response" scope="default" type="STRING"/>
+            </propertyGroup>
+
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-admin-papi"/>
+                <with-param name="sequence" value="policy-admin-papi-create-endorsement-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </then>
+        <else/>
+    </filter>
+
+    <enrich>
+        <source type="property" property="endorsementRequest" clone="true"/>
+        <target type="body"/>
+    </enrich>
+
+    <script language="js"><![CDATA[
+    var req = mc.getPayloadJSON();
+    var policyStr = mc.getProperty("policyResponse");
+    var policy = policyStr ? JSON.parse(policyStr) : {};
+
+    function arr(x){ return Array.isArray(x) ? x : []; }
+    function exists(x){ return x !== undefined && x !== null; }
+
+    function shallowCopy(obj){
+        var o = {};
+        if (!obj) return o;
+        for (var k in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, k)) {
+                o[k] = obj[k];
+            }
+        }
+        return o;
+    }
+
+    function nextDriverStart(pol){
+        var maxN = 0;
+        arr(pol.driverDetails).forEach(function(d){
+            var m = String(d.driverIdentifier || "").match(/DR-(\d+)/);
+            if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+        });
+        return maxN;
+    }
+
+    function nextVehStart(pol){
+        var maxN = 0;
+        arr(pol.insurableObjects).forEach(function(io){
+            var m = String(io.insurableObjectIdentifier || "").match(/VEH-(\d+)/);
+            if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+        });
+        return maxN;
+    }
+
+    function normalizeCoveragesForUpdate(covObj, ioId){
+        covObj = covObj || {};
+        var addArr = arr(covObj.add || covObj.added);
+        var updArr = arr(covObj.update || covObj.updated);
+        var remArr = arr(covObj.remove || covObj.removed);
+
+        var addedArr = addArr.map(function(c, idx){
+            var out = shallowCopy(c);
+            if (!out.coverageIdentifier) {
+                out.coverageIdentifier = "COV-VEH-" + (idx + 1) + "-" + ioId;
+            }
+            return out;
+        });
+
+        return {
+            added: addedArr,
+            updated: updArr,
+            removed: remArr
+        };
+    }
+
+    function normalizeFieldValuesForUpdate(fieldValues, ioId){
+        fieldValues = fieldValues || {};
+        var out = shallowCopy(fieldValues);
+
+        if (out.coverages) {
+            out.coverages = normalizeCoveragesForUpdate(out.coverages, ioId);
+        }
+        return out;
+    }
+
+    var driverBase = nextDriverStart(policy);
+    var ioBase = nextVehStart(policy);
+    var pv = policy.policyVersion || {};
+    var endorsementId = "EID" + new Date().getTime();
+
+    var changes = req.changes || {};
+    var dc = changes.driverChanges || changes.drivers || {};
+    var addDrivers = arr(dc.add || dc.added);
+    var updDrivers = arr(dc.update || dc.updated);
+    var remDrivers = arr(dc.remove || dc.removed);
+
+    var driversAdded = addDrivers.map(function(d, i){
+        return {
+            driverIdentifier: "DR-" + (driverBase + i + 1),
+            driverName: d.driverName,
+            driverLicenseNumber: d.driverLicenseNumber,
+            driverLicenseJurisdictionCode: d.driverLicenseJurisdictionCode,
+            driverLicenseJurisdictionZipCode: d.driverLicenseJurisdictionZipCode,
+            drivingExperienceYearCount: d.drivingExperienceYearCount,
+            yearsLicensedCount: d.yearsLicensedCount,
+            accidentCount: d.accidentCount,
+            violationCount: d.violationCount
+        };
+    });
+
+    var driversUpdated = updDrivers.map(function(d){
+        return {
+            driverIdentifier: d.driverIdentifier,
+            fieldValues: (d.fieldValues || {})
+        };
+    });
+
+    var driversRemoved = remDrivers.map(function(d){
+        return { driverIdentifier: d.driverIdentifier };
+    });
+
+    var ioc = changes.insurableObjectChanges || changes.insurableObjects || {};
+    var addIO = arr(ioc.add || ioc.added);
+    var updIO = arr(ioc.update || ioc.updated);
+    var remIO = arr(ioc.remove || ioc.removed);
+
+    var insurableObjectsAdded = addIO.map(function(io, i){
+        var vehSeq = ioBase + i + 1;
+        var ioId = "VEH-" + vehSeq;
+
+        return {
+            insurableObjectIdentifier: ioId,
+            insurableObjectTypeCode: io.insurableObjectTypeCode,
+            vehicle: io.vehicle || {},
+            coverages: arr(io.coverages).map(function(cov, idx){
+                return {
+                    insurableObjectIdentifier: ioId,
+                    coverageIdentifier: "COV-VEH-" + (idx + 1) + "-" + vehSeq,
+                    coverageName: cov.coverageName,
+                    limits: arr(cov.limits),
+                    deductibles: arr(cov.deductibles)
+                };
+            })
+        };
+    });
+
+    var insurableObjectsUpdated = updIO.map(function(io){
+        return {
+            insurableObjectIdentifier: io.insurableObjectIdentifier,
+            fieldValues: normalizeFieldValuesForUpdate(io.fieldValues || {}, io.insurableObjectIdentifier)
+        };
+    });
+
+    var insurableObjectsRemoved = remIO.map(function(io){
+        return { insurableObjectIdentifier: io.insurableObjectIdentifier };
+    });
+
+    var endorsementResponse = {
+        policyNumber: req.policyNumber || mc.getProperty("policyId"),
+        endorsementId: endorsementId,
+        endorsementStatusCode: "PENDING",
+        productCode: req.productCode,
+        endorsementName: req.endorsementName,
+        endorsementCategory: req.endorsementCategory,
+        endorsementState: req.endorsementState,
+        endorsementEffectiveDate: req.endorsementEffectiveDate,
+        transactionDate: req.transactionDate,
+        policyEvent: {
+            eventTypeCode: req.policyEvent && req.policyEvent.eventTypeCode,
+            eventDate: req.policyEvent && req.policyEvent.eventDate
+        },
+        policyVersion: {
+            policyVersionIdentifier: exists(pv.policyVersionIdentifier) ? pv.policyVersionIdentifier : "PV-001",
+            versionNumber: exists(pv.versionNumber) ? pv.versionNumber : 1,
+            transactionTypeCode: (req.policyEvent && req.policyEvent.eventTypeCode) || "ENDORSEMENT",
+            versionEffectiveDate: req.endorsementEffectiveDate
+        },
+        reprice: req.reprice,
+        conflictHandling: req.conflictHandling,
+        changes: {
+            drivers: { added: driversAdded, updated: driversUpdated, removed: driversRemoved },
+            insurableObjects: { added: insurableObjectsAdded, updated: insurableObjectsUpdated, removed: insurableObjectsRemoved }
+        },
+        message: "Endorsement application created successfully"
+    };
+
+    mc.setProperty("endorsementResponseObj", JSON.stringify(endorsementResponse));
+    mc.setProperty("endorsementId", endorsementId);
+]]></script>
+
+    <payloadFactory media-type="json">
+        <format>
+            {
+              "endorsementDoc": $1,
+              "policyUpdateFilter": { "policyNumber": "$2" },
+              "policyUpdateDoc": {
+                "$set": {
+                  "policyStatusCode": "ENDORSEMENT_REQUESTED",
+                  "endorsements": $1
+                }
+              },
+              "endorsementResponse": $1
+            }
+        </format>
+        <args>
+            <arg evaluator="json" expression="json-eval($ctx:endorsementResponseObj)"/>
+            <arg expression="$ctx:policyId"/>
+        </args>
+    </payloadFactory>
+
+    <log level="custom">
+        <property name="policyId" expression="$ctx:policyId"/>
+        <property name="DEBUG_SAPI_REQ" expression="json-eval($.)"/>
+    </log>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="policy-admin-papi"/>
+        <with-param name="sequence" value="policy-admin-papi-create-endorsement-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Calling endorsement-sapi-create-endorsement-endpoint"/>
+        <with-param name="status" value="PROCESSING"/>
+    </call-template>
+
+    <property name="HTTP_METHOD" scope="axis2" value="POST"/>
+    <property name="messageType" scope="axis2" value="application/json"/>
+    <property name="ContentType" scope="axis2" value="application/json"/>
+    <property name="Accept" scope="transport" value="application/json"/>
+
+    <property name="REST_URL_POSTFIX"
+              scope="axis2"
+              expression="fn:concat('/policies/', $ctx:policyId, '/endorsements')"/>
+
+    <call>
+        <endpoint key="endorsement-sapi-restEndpoint"/>
+    </call>
+
+    <property name="statusCode" expression="$axis2:HTTP_SC" scope="default" type="STRING"/>
+
+    <filter xpath="get-property('statusCode')='200' or get-property('statusCode')='201'">
+        <then>
+            <payloadFactory media-type="json">
+                <format>$1</format>
+                <args>
+                    <arg evaluator="json" expression="json-eval($.endorsementResponse)"/>
+                </args>
+            </payloadFactory>
+
+            <property name="HTTP_SC" value="201" scope="axis2"/>
+            <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-admin-papi"/>
+                <with-param name="sequence" value="policy-admin-papi-create-endorsement-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="Endorsement application created successfully"/>
+                <with-param name="status" value="END"/>
+            </call-template>
+
+            <respond/>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property name="ERROR_CODE" value="CREATE_ENDORSEMENT_FAILED" scope="default" type="STRING"/>
+                <property name="ERROR_MESSAGE" value="Unable to create endorsement" scope="default" type="STRING"/>
+                <property name="ERROR_DETAIL" value="Endorsement SAPI call failed while creating or updating endorsement data" scope="default" type="STRING"/>
+            </propertyGroup>
+
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="policy-admin-papi"/>
+                <with-param name="sequence" value="policy-admin-papi-create-endorsement-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+
+            <sequence key="policy-admin-papi-fault-sequence"/>
+        </else>
+    </filter>
+
+</sequence>

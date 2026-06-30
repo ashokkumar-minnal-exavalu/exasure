@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="socotra-policy-sapi-getPolicyBy-policyId-sequence" xmlns="http://ws.apache.org/ns/synapse">
+	<!-- START LOG -->
+	<call-template target="Common-Log-Template-V1">
+		<with-param name="service" value="socotra-policy-sapi"/>
+		<with-param name="sequence" value="socotra-policy-sapi-getPolicyBy-policyId-sequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Initiating sequence"/>
+		<with-param name="status" value="START"/>
+	</call-template>
+	<!-- POLICY ID -->
+	<property name="policyId" expression="get-property('uri.var.policyId')" scope="default"/>
+	<!-- MONGO QUERY -->
+	<property name="mongoQuery" expression="fn:concat('{ &quot;policyNumber&quot; : &quot;', $ctx:policyId, '&quot; }')" scope="default"/>
+	<!-- FIND POLICY -->
+	<mongodb.find configKey="wso2DB-policies">
+		<collection>policies</collection>
+		<query>{$ctx:mongoQuery}</query>
+		<overwriteBody>true</overwriteBody>
+		<responseVariable>Response</responseVariable>
+	</mongodb.find>
+	<!-- CHECK FOUND -->
+	<filter source="json-eval($.found)" regex="true">
+		<!-- ================= FOUND ================= -->
+		<then>
+			<!-- CHECK ACTIVE STATUS -->
+			<filter source="json-eval($.data[0].termStatusCode)" regex="(?i)ACTIVE">
+				<then>
+					<!-- CHECK EXPIRY -->
+					<script language="js"><![CDATA[
+                        var payload = mc.getPayloadJSON();
+                        var isExpired = false;
+
+                        if (payload && payload.data && payload.data.length > 0) {
+
+                            var policy = payload.data[0];
+
+                            if (policy.termEndDate) {
+
+                                var endDate = new Date(policy.termEndDate);
+                                var now = new Date();
+
+                                if (now > endDate) {
+                                    isExpired = true;
+                                }
+                            }
+                        }
+
+                        mc.setProperty("IS_POLICY_EXPIRED", String(isExpired));
+                    ]]></script>
+					<!-- IF EXPIRED -->
+					<filter xpath="get-property('IS_POLICY_EXPIRED') = 'true'">
+						<then>
+							<!-- UPDATE STATUS TO LAPSED -->
+							<property name="queryDoc" expression="fn:concat('{&quot;policyNumber&quot;:&quot;', $ctx:policyId, '&quot;}')"/>
+							<payloadFactory media-type="json">
+								<format>{
+									"$set": {
+									"status": "Lapsed"
+									}
+									}</format>
+							</payloadFactory>
+							<property name="updateDoc" expression="json-eval($.)"/>
+							<mongodb.updateOne configKey="wso2DB-policies">
+								<collection>policies</collection>
+								<query>{$ctx:queryDoc}</query>
+								<update>{$ctx:updateDoc}</update>
+								<upsert>false</upsert>
+							</mongodb.updateOne>
+							<!-- RE-FETCH UPDATED POLICY -->
+							<mongodb.find configKey="wso2DB-policies">
+								<collection>policies</collection>
+								<query>{$ctx:queryDoc}</query>
+								<overwriteBody>true</overwriteBody>
+								<responseVariable>policyResponse</responseVariable>
+							</mongodb.find>
+						</then>
+					</filter>
+				</then>
+			</filter>
+			<!-- FINAL RESPONSE BUILD -->
+			<payloadFactory media-type="json">
+				<format>$1</format>
+				<args>
+					<arg evaluator="json" expression="json-eval($.data[0])"/>
+				</args>
+			</payloadFactory>
+			<!-- CLEAN _id -->
+			<script language="js"><![CDATA[
+                var policy = mc.getPayloadJSON();
+
+                delete policy._id;
+
+                if (policy.endorsements && policy.endorsements._id) {
+                    delete policy.endorsements._id;
+                }
+
+                mc.setPayloadJSON(policy);
+            ]]></script>
+			<respond/>
+		</then>
+		<!-- ================= NOT FOUND ================= -->
+		<else>
+			<property name="HTTP_SC" value="404" scope="axis2"/>
+			<payloadFactory media-type="json">
+				<format>{
+					"errorCode": "404",
+					"errorMessage": "No policy found",
+					"errorDetails": "The data requested is not found in database.",
+					"transactionId": "$1",
+					"timeStamp": "$2"
+					}</format>
+				<args>
+					<arg evaluator="xml" expression="get-property('correlation_id')"/>
+					<arg evaluator="xml" expression="get-property('SYSTEM_DATE')"/>
+				</args>
+			</payloadFactory>
+			<respond/>
+		</else>
+	</filter>
+	<!-- END LOG -->
+	<call-template target="Common-Log-Template-V1">
+		<with-param name="service" value="socotra-policy-sapi"/>
+		<with-param name="sequence" value="socotra-policy-sapi-getPolicyBy-policyId-sequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Ending sequence"/>
+		<with-param name="status" value="END"/>
+	</call-template>
+</sequence>

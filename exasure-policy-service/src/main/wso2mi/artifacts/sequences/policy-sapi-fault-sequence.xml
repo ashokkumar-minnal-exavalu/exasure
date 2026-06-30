@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="policy-sapi-fault-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <payloadFactory description="Error response" media-type="json">
+        <format>{
+            "errors": [
+                {
+                    "errorMessage": "$1",
+                    "errorDescription": "$2",
+                    "errorCode": "$3"
+                }
+                     ]
+                }
+        </format>
+        <args>
+            <arg evaluator="xml" expression="get-property('ERROR_MESSAGE')"/>
+            <arg evaluator="xml" expression="get-property('ERROR_DETAIL')"/>
+            <arg evaluator="xml" expression="get-property('ERROR_CODE')"/>
+        </args>
+    </payloadFactory>   
+    <filter regex="true" source="boolean($axis2:HTTP_SC)">
+        <then>
+            <property description="Error code" expression="$axis2:HTTP_SC" name="HTTP_SC" scope="axis2" type="STRING"/>
+        </then>
+        <else>
+            <property description="Error code" name="HTTP_SC" scope="axis2" type="STRING" value="500"/>
+        </else>
+    </filter>
+    <respond/>
+</sequence>
