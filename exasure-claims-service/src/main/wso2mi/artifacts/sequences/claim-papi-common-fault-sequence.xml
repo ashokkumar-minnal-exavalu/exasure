@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-common-fault-sequence" xmlns="http://ws.apache.org/ns/synapse">
+<variable name="errorCode" expression="${exists(vars.ERROR_CODE) ? vars.ERROR_CODE : (exists(props.synapse.ERROR_CODE) ? props.synapse.ERROR_CODE : 'INTERNAL_ERROR')}" type="STRING"/>
+	<variable name="errorMessage" expression="${exists(vars.ERROR_MESSAGE) ? vars.ERROR_MESSAGE : (exists(props.synapse.ERROR_MESSAGE) ? props.synapse.ERROR_MESSAGE : 'An error occurred')}" type="STRING"/>
+	<variable name="errorDetail" expression="${exists(vars.ERROR_DETAIL) ? vars.ERROR_DETAIL : (exists(props.synapse.ERROR_DETAIL) ? props.synapse.ERROR_DETAIL : 'No additional details available')}" type="STRING"/>
+	<variable name="httpStatusCode" expression="${exists(vars.HTTP_SC) ? vars.HTTP_SC : (exists(props.axis2.HTTP_SC) ? props.axis2.HTTP_SC : '500')}" type="STRING"/>
+	<variable name="errorMsg" expression="${'Error occurred in claim-papi - errorMessage: ' + vars.errorMessage + ' errorDetail: ' + vars.errorDetail + ' errorCode: ' + vars.errorCode}" type="STRING"/>
+	<call-template target="Common-Log-Template-V1">
+		<with-param name="service" value="claim-papi"/>
+		<with-param name="sequence" value="claim-papi-common-fault-sequence"/>
+		<with-param name="level" value="ERROR"/>
+		<with-param name="message" value="{${vars.errorMsg}}"/>
+		<with-param name="status" value="ERROR"/>
+	</call-template>
+	<payloadFactory media-type="json">
+		<format>{
+            "errors": [{
+            "errorMessage": "${vars.errorMessage}",
+            "errorDescription": "${vars.errorDetail}",
+            "errorCode": "${vars.errorCode}"
+            }]
+            }</format>
+	</payloadFactory>
+	<property name="HTTP_SC" scope="axis2" type="STRING" expression="${vars.httpStatusCode}"/>
+	<respond/>
+</sequence>

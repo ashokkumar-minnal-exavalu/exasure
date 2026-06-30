@@ -1,0 +1,640 @@
+<sequence name="claim-papi-createClaimSequence" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="claim-papi-createClaimSequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating claim-papi-createClaimSequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <!-- Store initial request -->
+    <property name="req" expression="json-eval($)" scope="default"/>
+    <property name="policyNumber" expression="json-eval($.claimRequest.policy.policyNumber)" scope="default" type="STRING"/>
+
+    <!-- ================= FETCH POLICY DETAILS ================= -->
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/', get-property('policyNumber'))"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="policy-papi-restEndpoint"/>
+    </call>
+    <property name="policyPayload" expression="json-eval($)" scope="default" type="STRING"/>
+    <property name="quoteId" expression="json-eval($.quote.quoteId)" scope="default" type="STRING"/>
+
+    <!-- ================= FETCH COVERAGES ================= -->           
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/quote/', get-property('quoteId'), '/coverages')"/>                      
+    </propertyGroup>
+    <call>
+        <endpoint key="quote-sapi-restEndpoint"/>
+    </call>            
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Response from get all coverages endpoint +++++++++++++</message>
+    </log>
+    <property name="coveragePayload" expression="json-eval($)" scope="default" type="STRING"/> 
+    <!-- ================= MERGE PAYLOAD ================= -->
+    <script language="js"><![CDATA[
+        var base = mc.getProperty("req");
+        var coverageData = mc.getProperty("coveragePayload");
+
+        // Parse base
+        if (typeof base === "string") {
+            base = JSON.parse(base);
+        }
+
+        // Parse coverage
+        if (typeof coverageData === "string") {
+            coverageData = JSON.parse(coverageData);
+        }
+
+        //  Ensure coverageData is ALWAYS an array
+        if (!Array.isArray(coverageData)) {
+            coverageData = [coverageData];
+        }
+
+        if (!coverageData) {
+            coverageData = [];
+        }
+
+        if (base.claimRequest &&
+            base.claimRequest.policy &&
+            base.claimRequest.policy.insurableObjects) {
+
+            var objects = base.claimRequest.policy.insurableObjects;
+
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                var matchedCoverages = [];
+
+                for (var j = 0; j < coverageData.length; j++) {
+                    var cov = coverageData[j];
+
+                    //  Debug safeguard
+                    if (!cov) continue;
+
+                    if (cov.insurableObjectIdentifier == obj.insurableObjectIdentifier) {
+                        matchedCoverages.push({
+                            coverageIdentifier: cov.coverageIdentifier,
+                            coverageName: cov.coverageName,
+                            limits: cov.limits,
+                            deductibles: cov.deductibles
+                        });
+                    }
+                }
+
+                obj.coverage = matchedCoverages;
+            }
+        }
+
+        mc.setPayloadJSON(base);
+    ]]></script>
+    <!-- ================= STORE ORIGINAL PAYLOAD ================= -->
+    <property name="initPayload" expression="json-eval($)" scope="default" type="STRING"/>
+
+
+    <!-- =====================VALIDATION LOGIC ===================== -->
+    <script language="js"><![CDATA[
+        var payload = mc.getPayloadJSON();
+        var req = payload ? payload.claimRequest : null;
+
+        var allowedClaimTypes = [
+            "OWN_DAMAGE", "THIRD_PARTY", "THEFT", "FIRE",
+            "BODILY_INJURY", "THIRD_PARTY_LIABILITY",
+            "COLLISION", "ROADSIDE_SERVICE"
+        ];
+
+        function isBlank(v) {
+            return v === null || v === undefined || String(v).trim() === "";
+        }
+
+        var response = {};
+
+        // ==================== MAIN VALIDATION ====================
+
+        if (req == null) {
+            response = { valid: false, error: "claimRequest is missing" };
+        }
+        else if (allowedClaimTypes.indexOf(req.claimType) === -1) {
+            response = {
+                valid: false,
+                error: "claimType must be one of OWN_DAMAGE, THIRD_PARTY, THEFT,FIRE,BODILY_INJURY,THIRD_PARTY_LIABILITY,COLLISION,ROADSIDE_SERVICE"
+            };
+        }
+        else if (isBlank(req.claimReportedDate)) {
+            response = { valid: false, error: "claimReportedDate is mandatory" };
+        }
+        else if (isBlank(req.incidentDateTime)) {
+            response = { valid: false, error: "incidentDateTime is mandatory" };
+        }
+        else if (!req.parties || req.parties.length === 0) {
+            response = { valid: false, error: "At least one party is required" };
+        }
+        else if (!req.policy || isBlank(req.policy.policyNumber)) {
+            response = { valid: false, error: "policyNumber is mandatory" };
+        }
+        else if (!req.policy || isBlank(req.policy.productType)) {
+            response = { valid: false, error: "productType is mandatory" };
+        }
+
+        // ==================== VEHICLE ====================
+
+        else if (!req.policy.insurableObjects || req.policy.insurableObjects.length === 0) {
+            response = { valid: false, error: "At least one insurableObject is required" };
+        }
+        else if (
+            !req.policy.insurableObjects[0].vehicle ||
+            isBlank(req.policy.insurableObjects[0].vehicle.vehicleIdentificationNumber)
+        ) {
+            response = { valid: false, error: "vehicleIdentificationNumber (VIN) is mandatory" };
+        }
+        else if (req.policy.insurableObjects[0].vehicle.vehicleValue == null) {
+            response = { valid: false, error: "vehicleValue is mandatory" };
+        }
+
+        // ==================== COVERAGE ====================
+
+        else if (
+            !req.policy.insurableObjects[0].coverage ||
+            req.policy.insurableObjects[0].coverage.length === 0
+        ) {
+            response = { valid: false, error: "At least one coverage is required for vehicle" };
+        }
+        else if (
+            isBlank(req.policy.insurableObjects[0].coverage[0].coverageIdentifier)
+        ) {
+            response = { valid: false, error: "coverageIdentifier is mandatory" };
+        }
+
+        // ==================== DRIVER ====================
+
+        else if (!req.policy.driverDetails) {
+            response = { valid: false, error: "driverDetails is mandatory" };
+        }
+        else if (isBlank(req.policy.driverDetails.driverName)) {
+            response = { valid: false, error: "driverName is mandatory" };
+        }
+        else if (isBlank(req.policy.driverDetails.driverLicenseNumber)) {
+            response = { valid: false, error: "driverLicenseNumber is mandatory" };
+        }
+
+        // ==================== POLICE REPORT ====================
+
+        else if (
+            req.accidentDetails &&
+            req.accidentDetails.policeReport &&
+            req.accidentDetails.policeReport.reportRegistered === true &&
+            (
+                isBlank(req.accidentDetails.policeReport.reportNumber) ||
+                isBlank(req.accidentDetails.policeReport.policeStation)
+            )
+        ) {
+            response = {
+                valid: false,
+                error: "Police report number and police station are mandatory when reportRegistered is true"
+            };
+        }
+
+        // ==================== IMAGES ====================
+
+        else if (
+            !req.accidentDetails ||
+            !req.accidentDetails.images ||
+            req.accidentDetails.images.length === 0
+        ) {
+            response = { valid: false, error: "At least one accident image is required" };
+        }
+
+        // ==================== LOCATION ====================
+
+        else if (
+            !req.incidentLocation ||
+            !req.incidentLocation.address ||
+            isBlank(req.incidentLocation.address.addressLine1) ||
+            isBlank(req.incidentLocation.address.cityName) ||
+            isBlank(req.incidentLocation.address.stateCode) ||
+            isBlank(req.incidentLocation.address.countryCode)
+        ) {
+            response = { valid: false, error: "Complete incidentLocation address is mandatory" };
+        }
+
+        // ==================== BANK ====================
+
+        else if (
+            !req.bankDetails ||
+            isBlank(req.bankDetails.accountNumber) ||
+            isBlank(req.bankDetails.bankName)
+        ) {
+            response = { valid: false, error: "Bank accountNumber and bankName are mandatory" };
+        }
+
+        // ==================== CONTACT ====================
+
+        else if (
+            !req.contactDetails ||
+            isBlank(req.contactDetails.email)
+        ) {
+            response = { valid: false, error: "Contact email is mandatory" };
+        }
+        else if (isBlank(req.contactDetails.phone)) {
+            response = { valid: false, error: "Contact phone is mandatory" };
+        }
+
+        // ==================== SUCCESS ====================
+
+        else {
+            response = { valid: true, error: null };
+        }
+
+        mc.setPayloadJSON(response);
+
+    ]]></script>
+    <property name="validationResultFlag" expression="json-eval($.valid)" scope="default" type="STRING"/>
+    <!-- ================= CHOICE ================= -->
+    <filter xpath="$ctx:validationResultFlag = 'false'">
+
+        <!-- INVALID -->
+        <then>
+            <property name="HTTP_SC" value="400" scope="axis2"/>
+            <property name="ERROR_CODE" value="APP:INVALID_INPUT"/>
+
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                        "success": false,
+                        "error": "$1"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="json" expression="$.error"/>
+                </args>
+            </payloadFactory>
+
+            <respond/>
+        </then>
+
+        <!-- VALID -->
+        <else>
+            <enrich>
+                <source type="property" property="initPayload"/>
+                <target type="body"/>
+            </enrich>
+        </else>
+
+    </filter>
+    <!-- ================= SET documentResponse = [] ================= -->
+    <property name="documentResponse" value="[]" scope="axis2" type="STRING"/>
+    <property name="HTTP_METHOD" value="POST" scope="axis2"/>
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" value="/api/document" scope="axis2"/>
+    <property name="imagesExists" expression="json-eval($.claimRequest.accidentDetails.images)" scope="default"/>
+    <filter source="$ctx:imagesExists" regex=".+">
+        <then>
+            <foreach collection="${$.claimRequest.accidentDetails.images}" parallel-execution="false" update-original="true" continue-without-aggregation="false">
+                <sequence>
+                    <script language="js"><![CDATA[
+                    var image = mc.getPayloadJSON();
+                    var uuid = java.util.UUID.randomUUID().toString().replace(/-/g,"");
+                    var docPayload = {
+                        documentId: "DL-" + uuid,
+                        fileName: image.fileName,
+                        contentType: image.contentType,
+                        data: image.data
+                    };
+                    mc.setPayloadJSON(docPayload);
+                    ]]></script>               
+                    <call>
+                        <endpoint key="document-sapi-restEndpoint"/>
+                    </call>
+                    <log category="INFO" logMessageID="true" logFullPayload="true">
+                        <message>Response from document-sapi-restEndpoint +++++++++++++</message>
+                    </log> 
+                    <!-- Append response to documentResponse -->
+                    <script language="js"><![CDATA[
+                        var currentResponse = mc.getPayloadJSON();
+
+                        var existing = mc.getProperty("documentResponse");
+
+                        if (existing == null) {
+                            existing = [];
+                        } else if (typeof existing === "string") {
+                            existing = JSON.parse(existing);
+                        }
+
+                        if (!Array.isArray(existing)) {
+                            existing = [];
+                        }
+
+                        existing.push(currentResponse);
+
+                        mc.setProperty("documentResponse", JSON.stringify(existing), "axis2");
+                    ]]></script>                                                          
+                </sequence>
+            </foreach>
+        </then>
+        <!-- ================= OTHERWISE (NO IMAGES) ================= -->
+        <else>
+
+            <!-- Generate Claim ID + Transform -->
+            <script language="js"><![CDATA[
+                var payload = mc.getPayloadJSON();
+
+                var epoch = Date.now().toString();
+                var rand = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+
+                var claimId = "CLM-" + (epoch + rand).slice(-10);
+
+                var claimRequest = payload.claimRequest;
+
+                claimRequest.claimId = claimId;
+
+                // zipCode → pinCode
+                if (claimRequest.incidentLocation &&
+                    claimRequest.incidentLocation.address &&
+                    claimRequest.incidentLocation.address.zipCode) {
+
+                    var addr = claimRequest.incidentLocation.address;
+
+                    addr.pinCode = addr.zipCode;
+                    delete addr.zipCode;
+                }
+
+                mc.setPayloadJSON({
+                    claimRequest: claimRequest
+                });
+            ]]></script>
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Payload after else condition script if no Images present +++++++++++++</message>
+            </log> 
+        </else>
+    </filter> 
+    <script language="js"><![CDATA[
+
+        var payload = mc.getPayloadJSON();
+        var claim = payload.claimRequest;
+
+        // ================= GENERATE CLAIM ID =================
+        var epoch = Date.now().toString();
+        var rand = Math.floor(Math.random() * 1000).toString();
+        var rand3 = rand.length < 3 ? ("000".substring(0, 3 - rand.length) + rand) : rand;
+
+        var claimId = "CLM-" + (epoch + rand3).slice(-10);
+
+        // ================= MAP IMAGES DIRECTLY =================
+        if (claim.accidentDetails && Array.isArray(claim.accidentDetails.images)) {
+
+            claim.accidentDetails.images = claim.accidentDetails.images.map(function(item) {
+
+                // item is already { documentId, message }
+                if (item && item.documentId) {
+                    return item.documentId;
+                }
+
+                // fallback (never null)
+                return "DOC-MISSING";
+            });
+        }
+
+        // ================= SET CLAIM FIELDS =================
+        claim.claimId = claimId;
+
+        var now = new Date();
+        var formattedDate = now.toISOString().slice(0,19); // yyyy-MM-ddTHH:mm:ss
+
+        claim.claimIntimationDate = formattedDate;
+        claim.claimStatusCode = "APPLIED";
+
+        // ================= ZIP → PIN =================
+        if (claim.incidentLocation && claim.incidentLocation.address) {
+
+            var addr = claim.incidentLocation.address;
+
+            if (addr.zipCode) {
+                addr.pinCode = addr.zipCode;
+                delete addr.zipCode;
+            }
+        }
+
+        // ================= FINAL PAYLOAD =================
+        var finalPayload = {
+            claimRequest: claim
+        };
+
+        // ================= STORE VARIABLES =================
+        mc.setProperty("updatedPayload", JSON.stringify(finalPayload));
+        mc.setProperty("claimIntimationDate", claim.claimIntimationDate);
+        mc.setProperty("policyId", claim.policy.policyNumber);
+
+        // ================= SET OUTPUT =================
+        mc.setPayloadJSON(finalPayload);
+
+    ]]></script>           
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Payload before calling create claim sapi endpoint +++++++++++++</message>
+        <property name="updatedPayload++++++++++++" expression="get-property('updatedPayload')" scope="default"/>    
+    </log>                      
+    <enrich>
+        <source clone="false" type="body"/>
+        <target action="replace" type="property" property="updatedPayload"/>
+    </enrich>    
+    <propertyGroup description="properties">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/claim"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="claim-sapi-restEndpoint"/>
+    </call>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Payload after calling create claim sapi endpoint +++++++++++++</message>
+        <property name="claimId" expression="json-eval($.claimId)" scope="default"/>    
+    </log>                  
+    <property name="claimId" expression="json-eval($.claimId)" scope="default"/>
+
+    <!-- ===================== ASYNC PROCESSING ===================== -->
+    <clone continueParent="true">
+        <target>
+            <sequence>
+                <!-- ===================== STEP 2: PREPARE EMAIL USING SCRIPT ===================== -->
+                <script language="js"><![CDATA[
+
+                    var updatedPayload = mc.getProperty("updatedPayload");
+                    var payload = updatedPayload ? JSON.parse(updatedPayload) : {};
+                    var claim = payload.claimRequest || {};
+
+                    var claimId = claim.claimId || "";
+                    var policyNumber = (claim.policy || {}).policyNumber || "";
+                    var claimDate = claim.claimIntimationDate || "";
+
+                    function formatDate(dateInput) {
+                        if (!dateInput) return "";
+                        var d = new Date(dateInput);
+                        return isNaN(d.getTime()) ? dateInput : d.toLocaleString("en-US", {
+                            month: "long",
+                            day: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true
+                        });
+                    }
+
+                    var nowFormatted = formatDate(new Date());
+                    var formattedClaimDate = formatDate(claimDate);
+
+                    var subject = "Acknowledgement of Claim " + claimId;
+                    mc.setProperty("Email_Subject", subject);
+
+                    var emailBody = '<!doctype html>' +
+                    '<html><body>' +
+                    '<h2>Claim Acknowledgement - ' + claimId + '</h2>' +
+
+                    '<p>' + nowFormatted + '</p>' +
+                    '<p>Dear User,</p>' +
+
+                    '<p>I am writing on behalf of <strong>Exasure Insurance Integration Cloud</strong> to acknowledge receiving your claim filed on ' +
+                    formattedClaimDate +
+                    ' regarding your Personal Auto Insurance policy # ' + policyNumber +
+                    '. Your claim is currently under review.</p>' +
+                    '<p>Sincerely,<br><strong>Exasure IIC</strong></p>' +
+
+
+                    '</body></html>';
+
+                    mc.setProperty("Email_Body", String(emailBody));
+
+                ]]></script>
+                <!-- ===================== STEP 3: CALL REUSABLE EMAIL SEQUENCE ===================== -->
+                <sequence key="claim-papi-send-email-sequence"/>
+
+            </sequence>
+        </target>
+    </clone>
+
+
+    <clone>
+        <target>
+            <sequence>
+
+                <script language="js"><![CDATA[
+
+                    // -----------------------------------
+                    // Parse input (vars.updatedPayload)
+                    // -----------------------------------
+                    var updatedPayload = mc.getProperty("updatedPayload");
+                    var payload = {};
+
+                    try {
+                        payload = updatedPayload ? JSON.parse(updatedPayload) : {};
+                    } catch (e) {
+                        payload = {};
+                    }
+
+                    var claim = payload.claimRequest || {};
+
+                    // DWL: claim.policy.insurableObjects default []
+                    var insurableObjects = (claim.policy && claim.policy.insurableObjects) || [];
+
+                    var mappedResult = [];
+
+                    // -----------------------------------
+                    // Map each insurable object
+                    // -----------------------------------
+                    for (var i = 0; i < insurableObjects.length; i++) {
+
+                        var insurableObj = insurableObjects[i];
+
+                        var mappedObj = {
+                            insurableObjectIdentifier: insurableObj.insurableObjectIdentifier,
+                            coverageStatus: "validated",
+                            claimType: claim.claimType,
+                            claimId: claim.claimId,
+                            coverages: []
+                        };
+
+                        // DWL: (insurableObj.coverage default [])
+                        var coverages = insurableObj.coverage || [];
+
+                        for (var j = 0; j < coverages.length; j++) {
+
+                            var coverageObj = coverages[j];
+
+                            mappedObj.coverages.push({
+                                coverageIdentifier: coverageObj.coverageIdentifier,
+                                coverageName: claim.claimType, // same as DWL
+                                limits: coverageObj.limits || [],
+                                deductibles: coverageObj.deductibles || []
+                            });
+                        }
+
+                        mappedResult.push(mappedObj);
+                    }
+
+                    // -----------------------------------
+                    // Final output (DWL logic)
+                    // -----------------------------------
+                    var finalPayload = {};
+
+                    if (mappedResult.length === 0) {
+                        finalPayload = {};                     // isEmpty
+                    } else if (mappedResult.length === 1) {
+                        finalPayload = mappedResult[0];        // sizeOf == 1
+                    } else {
+                        finalPayload = mappedResult;           // multiple
+                    }
+
+                    // -----------------------------------
+                    // Set payload
+                    // -----------------------------------
+                    mc.setPayloadJSON(finalPayload);
+
+                ]]></script>
+                <log category="INFO" logMessageID="true" logFullPayload="true">
+                    <message>Payload before claim-coverage-sapi endpoint+++++</message>
+                </log>                
+                <propertyGroup description="inputProperty">
+                    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+                    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/claim/', get-property('policyNumber'), '/coverage')"/>
+                </propertyGroup>
+                <call>
+                    <endpoint key="claim-coverage-sapi-restEndpoint"/>
+                </call>
+                <log category="INFO" logMessageID="true" logFullPayload="true">
+                    <message>Payload after claim-coverage-sapi endpoint+++++</message>
+                </log>
+                <property name="coverageStatus" expression="json-eval($.coverageStatus)" scope="default"/>
+                <sequence key="post-assignment-papi-sequence"/>
+                <log category="INFO" logMessageID="true" logFullPayload="true">
+                    <message>Response from Create Assignment Sequence call+++++++</message>
+                </log>
+                <enrich>
+                    <source clone="false" property="updatedPayload" type="property"/>
+                    <target action="replace" type="body"/>
+                </enrich>
+                <sequence key="claim-papi-postLossItemsByClaimId-sequence"/>
+                <log category="INFO" logMessageID="true" logFullPayload="true">
+                    <message>Response from post Loss Items sequence+++++++++</message>
+                </log>                                
+            </sequence>
+        </target>
+    </clone>
+    <payloadFactory media-type="json">
+        <format>
+            {
+                "isSuccessfull": true,
+                "claimId": "$1",
+                "message": "Claim registered successfully"
+            }
+        </format>
+        <args>
+            <arg expression="get-property('claimId')"/>
+        </args>
+    </payloadFactory>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="claim-papi-createClaimSequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending claim-papi-createClaimSequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

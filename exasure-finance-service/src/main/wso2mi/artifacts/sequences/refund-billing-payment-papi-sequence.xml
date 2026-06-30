@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="refund-billing-payment-papi-sequence"
+          trace="disable"
+          xmlns="http://ws.apache.org/ns/synapse">
+
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="billing-payment-papi-api"/>
+        <with-param name="sequence" value="refund-billing-payment-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started refund-billing-payment-papi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <sequence key="get-all-cancelled-policies-billing-payment-papi-sequence"/>
+
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Response from get-all-cancelled-policies-billing-payment-papi-sequence +++++++</message>
+    </log>
+
+    <script language="js"><![CDATA[
+        var payload = mc.getPayloadJSON();
+        var policies = [];
+
+        if (payload !== null && payload !== undefined && Array.isArray(payload)) {
+            policies = payload;
+        }
+
+        mc.setProperty("policyArrayEmpty", policies.length > 0 ? "false" : "true");
+    ]]></script>
+
+    <filter xpath="$ctx:policyArrayEmpty = 'false'">
+        <then>
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>inside filter condition policyArrayEmpty +++++++</message>
+            </log>
+
+            <iterate
+                id="policy_iterator"
+                expression="json-eval($.*)"
+                sequential="true"
+                preservePayload="false">
+                <target>
+                    <sequence>
+
+                        <log category="INFO" logMessageID="false">
+                            <message>Processing policy+++++++++</message>
+                        </log>
+
+                        <property name="partyIdentifier"
+                                  expression="json-eval($.parties[0].partyIdentifier)"
+                                  scope="default"
+                                  type="STRING"/>
+                        <property name="policyNumber"
+                                  expression="json-eval($.policyNumber)"
+                                  scope="default"
+                                  type="STRING"/>
+                        <property name="payloadChunk"
+                                  expression="json-eval($)"
+                                  scope="default"
+                                  type="STRING"/>
+                        <property name="quoteId"
+                                  expression="json-eval($.quoteId)"
+                                  scope="default"
+                                  type="STRING"/>
+
+                        <!-- Evaluate refund eligibility -->
+                        <script language="js"><![CDATA[
+                            var policy = mc.getPayloadJSON(); // already parsed — no JSON.parse()
+
+                            var today = new java.text.SimpleDateFormat("yyyy-MM-dd")
+                                            .format(new java.util.Date());
+                            var termEndDate = policy.termEndDate
+                                                ? policy.termEndDate.substring(0, 10)
+                                                : "";
+
+                            var isCancelled  = (policy.policyStatusCode === "CANCELLED");
+                            var isActive     = (policy.termStatusCode   === "ACTIVE");
+                            var isFutureDate = (termEndDate > today);
+
+                            var refundEligible = isCancelled && isActive && isFutureDate;
+
+                            var refundReason;
+                            if (!isCancelled) {
+                                refundReason = "Policy is not cancelled";
+                            } else if (!isActive) {
+                                refundReason = "Policy term is not active";
+                            } else if (!isFutureDate) {
+                                refundReason = "Policy term already ended";
+                            } else {
+                                refundReason = "Refund eligible";
+                            }
+
+                            mc.setProperty("refundEligible", refundEligible ? "true" : "false");
+                            mc.setProperty("refundReason", refundReason);
+
+                            mc.setPayloadJSON({
+                                policyNumber:   policy.policyNumber,
+                                quoteId:        policy.quoteId,
+                                refundEligible: refundEligible,
+                                refundReason:   refundReason
+                            });
+                        ]]></script>
+
+                        <property name="refundEligibility"
+                                  expression="json-eval($)"
+                                  scope="default"
+                                  type="STRING"/>
+
+                        <filter xpath="$ctx:refundEligible = 'true'">
+                            <then>
+                                <log category="INFO" logMessageID="true" logFullPayload="true">
+                                    <message>inside filter condition refundEligible +++++++</message>
+                                </log>                                
+                                <property name="TRANSPORT_HEADERS" action="remove" scope="axis2"/>
+                                <payloadFactory media-type="json">
+                                    <format>$1</format>
+                                    <args>
+                                        <arg expression="$ctx:payloadChunk"/>
+                                    </args>
+                                </payloadFactory>
+                                <log category="INFO" logMessageID="true" logFullPayload="true">
+                                    <message>payload before calling get-billing-transactions-billing-payment-papi-sequence +++++++</message>
+                                </log>
+                                <sequence key="get-billing-transactions-billing-payment-papi-sequence"/>
+                                <log category="INFO" logMessageID="true" logFullPayload="true">
+                                    <message>payload after calling get-billing-transactions-billing-payment-papi-sequence +++++++</message>
+                                </log>
+                                <property name="billingTransaction"
+                                          expression="json-eval($)"
+                                          scope="default"
+                                          type="STRING"/>
+
+                                <script language="js"><![CDATA[
+                                    var billing = mc.getPayloadJSON(); // already parsed — no JSON.parse()
+
+                                    var totalPremium    = billing.amountReceived;
+                                    var policyTermDays  = 365;
+                                    var usedDays        = 90;
+                                    var remainingDays   = policyTermDays - usedDays;
+                                    var unearnedPremium = (remainingDays / policyTermDays) * totalPremium;
+                                    var cancellationFee = unearnedPremium * 0.10;
+                                    var refundAmount    = unearnedPremium - cancellationFee;
+
+                                    mc.setPayloadJSON({
+                                        amount:   Math.round(refundAmount),
+                                        chargeId: billing.transactionId
+                                    });
+                                ]]></script>
+                                <log category="INFO" logMessageID="true" logFullPayload="true">
+                                    <message>payload before calling create-refund-billing-payment-papi-sequence +++++++</message>
+                                </log>
+                                <sequence key="create-refund-billing-payment-papi-sequence"/>
+                                <log category="INFO" logMessageID="true" logFullPayload="true">
+                                    <message>payload after calling create-refund-billing-payment-papi-sequence +++++++</message>
+                                </log>                                
+                            </then>
+                            <else>
+                                <log category="INFO" logMessageID="false">
+                                    <message>Policy not eligible for refund — skipping</message>
+                                </log>
+                            </else>
+                        </filter>
+
+                    </sequence>
+                </target>
+            </iterate>
+
+        </then>
+        <else>
+            <log category="INFO" logMessageID="false">
+                <message>No cancelled policies found — nothing to process</message>
+            </log>
+        </else>
+    </filter>
+
+    <log category="INFO" logMessageID="false">
+        <message>refund_subflow completed</message>
+    </log>
+
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="billing-payment-papi-api"/>
+        <with-param name="sequence" value="refund-billing-payment-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended refund-billing-payment-papi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+</sequence>

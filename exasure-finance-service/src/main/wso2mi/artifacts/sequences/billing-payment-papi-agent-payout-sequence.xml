@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="billing-payment-papi-agent-payout-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+   <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="billing-payment-papi"/>
+        <with-param name="sequence" value="billing-payment-papi-agent-payout-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started billing-payment-papi-agent-payout-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <sequence key="fetch_all_statement_sequence"/>
+<log level="custom">
+    <property name="PAYLOAD+++++++++++++" expression="json-eval($)"/>
+</log>
+<filter source="json-eval($)" regex="^\[(.+)\]$">
+<then>
+<iterate expression="json-eval($[*])"
+         id="agentPayoutIterator"
+         sequential="true">
+    <target>
+<sequence>
+<propertyGroup>
+    <property name="agentId" expression="json-eval($.agentIdentifier)" scope="default" type="STRING"/>
+    <property name="quoteId" expression="json-eval($.quoteId)" scope="default" type="STRING"/>
+    <property name="payloadChunk" expression="json-eval($)" scope="default" type="STRING"/>
+    <property name="totalCalculatedAmount" expression="json-eval($.summary.totalCalculatedAmount)" scope="default" type="STRING"/>
+</propertyGroup>
+<script language="js"><![CDATA[
+    var payload = mc.getPayloadJSON();
+
+    var amount = null;
+    var currency = null;
+    var quoteId = null;
+    var agentId = null;
+    var validPayout = false;
+
+    if (payload.summary != null && payload.summary.totalCalculatedAmount != null) {
+        amount = Math.round(Number(payload.summary.totalCalculatedAmount));
+    }
+
+    if (payload.currencyCode != null && payload.currencyCode !== "") {
+        currency = payload.currencyCode;
+    }
+
+    if (payload.quoteId != null && payload.quoteId !== "") {
+        quoteId = payload.quoteId;
+    }
+
+    if (payload.agentIdentifier != null && payload.agentIdentifier !== "") {
+        agentId = payload.agentIdentifier;
+    }
+
+    if (amount != null && currency != null) {
+        validPayout = true;
+    }
+
+    mc.setProperty("validPayout", validPayout ? "true" : "false");
+
+    var response = {
+        amount: amount,
+        currency: currency,
+        destination: "btok_us_verified",
+        quoteId: quoteId,
+        agentId: agentId
+    };
+
+    mc.setPayloadJSON(response);
+]]></script>
+<filter source="get-property('validPayout')" regex="true">
+    <then>
+<log level="custom">
+    <property name="create_payout_REQUEST" expression="json-eval($)"/>
+                                </log>
+<!-- amount and currency are available, so create payout -->
+<sequence key="create_payout_sequence"/>
+<property name="payoutId" expression="json-eval($.payoutId)" scope="default" type="STRING"/>
+<log level="custom">
+    <property name="payoutId*********" expression="get-property('payoutId')"/>
+</log>
+<payloadFactory media-type="json">
+    <format>{}</format>
+    <args/>
+</payloadFactory>
+<sequence key="retrieve_payout_sequence"/>
+<propertyGroup>
+    <property name="paymentDetails" expression="json-eval($)" scope="default" type="STRING"/>
+    <property name="status" expression="json-eval($.status)" scope="default" type="STRING"/>
+</propertyGroup>
+<filter source="get-property('status')" regex="paid">
+    <then>
+                                        <!-- status is paid -->
+<payloadFactory media-type="json">
+    <format>
+                                                {
+                                                "payoutId": "$1",
+                                                "quoteId": "$2",
+                                                "agentId": "$3",
+                                                "amount": $4,
+                                                "currency": "$5",
+                                                "arrivalDate": "$6",
+                                                "balanceTransactionId": "$7",
+                                                "created": "$8",
+                                                "destinationId": "$9",
+                                                "method": "$10",
+                                                "sourceType": "$11",
+                                                "status": "$12"
+                                                }
+                                            </format>
+    <args>
+                                                <arg evaluator="json" expression="$.payoutId"/>
+                                                <arg evaluator="xml" expression="get-property('quoteId')"/>
+                                                <arg evaluator="xml" expression="get-property('agentId')"/>
+                                                <arg evaluator="json" expression="$.amount"/>
+                                                <arg evaluator="json" expression="$.currency"/>
+                                                <arg evaluator="xml" expression="get-property('SYSTEM_DATE')"/>
+                                                <arg evaluator="json" expression="$.balanceTransactionId"/>
+                                                <arg evaluator="json" expression="$.created"/>
+                                                <arg evaluator="json" expression="$.destinationId"/>
+                                                <arg evaluator="json" expression="$.method"/>
+                                                <arg evaluator="json" expression="$.sourceType"/>
+                                                <arg evaluator="json" expression="$.status"/>
+                                            </args>
+                                        </payloadFactory>
+
+<log level="custom">
+                                            <property name="STORE_PAYOUT_REQUEST" expression="json-eval($)"/>
+                                        </log>
+                                        <sequence key="store_payout_sequence"/>
+<log level="custom">
+                                            <property name="STORE_PAYOUT_RESPONSE" expression="json-eval($)"/>
+                                        </log>
+<payloadFactory media-type="json">
+    <format>
+                                                {
+                                                "summary": {
+                                                "totalPaidAmount": $1
+                                                },
+                                                "statementStatusCode": "CLOSED"
+                                                }
+                                            </format>
+    <args>
+                                                <arg evaluator="xml" expression="get-property('totalCalculatedAmount')"/>
+                                            </args>
+                                        </payloadFactory>
+
+<log level="custom">
+  <property name="UPDATE_STATEMENT_REQUEST" expression="json-eval($)"/>
+</log>
+                                        <property name="quoteId" expression="get-property('quoteId')" scope="default" type="STRING"/>
+<sequence key="update-agent-statementsStatus-sequence"/>
+<!-- <clone continueParent="true" sequential="false" xmlns="http://ws.apache.org/ns/synapse">
+    <target>
+        <sequence>
+        <sequence key="agent-payout-email-sequence"/>
+        </sequence>
+    </target>
+</clone> -->
+
+</then>
+    <else>
+                                        <!-- status is not paid -->
+<log level="custom">
+    <property name="PAYOUT_STATUS" expression="get-property('status')"/>
+    <property name="INFO" value="Payout status is not paid"/>
+                                        </log>
+                                    </else>
+                                </filter>
+                            </then>
+<else>
+                                <!-- amount or currency is missing, so do not call payout -->        
+<log level="custom">
+    <property name="SKIPPED_PAYOUT" expression="json-eval($)"/>
+    <property name="REASON" value="Missing amount or currency"/>
+                                </log>
+                            </else>
+                        </filter>
+                    </sequence>
+    </target>
+</iterate>
+<payloadFactory media-type="json">
+    <format>
+        {
+          "message": "Agent payout processing completed"
+        }
+    </format>
+    <args/>
+</payloadFactory>
+    </then>
+    <else>
+    <propertyGroup description="error details">
+            <property value="400" name="ERROR_CODE" scope="default" type="STRING"/>
+            <property value="No statements found" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="No statements found" name="ERROR_DETAIL" scope="default" type="STRING"/>
+    </propertyGroup>
+        <property name="HTTP_SC" value="400" scope="axis2"/>
+        <call-template description="Error Log" target="Common-Log-Template-V1">
+            <with-param name="service" value="billing-payment-papi"/>
+            <with-param name="sequence" value="billing-payment-papi-agent-payout-sequence"/>
+            <with-param name="level" value="INFO"/>
+            <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+            <with-param name="status" value="ERROR"/>
+            </call-template>
+        <sequence key="billing-payment-papi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="billing-payment-papi"/>
+        <with-param name="sequence" value="billing-payment-papi-agent-payout-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="END billing-payment-papi-agent-payout-sequence"/>
+        <with-param name="status" value="Ended"/>
+    </call-template>
+</sequence>

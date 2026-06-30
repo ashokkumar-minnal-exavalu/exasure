@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-all-cancelled-policies-refund-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+
+    <!-- ===================== INIT PROPERTIES ===================== -->
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="policyStatus" value="CANCELLED" scope="default" type="STRING"/>
+        <property name="mongoQuery" type="STRING" value="{}"/>
+        <!-- MongoDB operator keys — injected into payloadFactory via $ctx: to avoid $$ escaping issues -->
+        <property name="op_gt"  value="$gt"  scope="default" type="STRING"/>
+        <property name="op_set" value="$set" scope="default" type="STRING"/>
+    </propertyGroup>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="refund-sapi-api"/>
+        <with-param name="sequence" value="get-all-cancelled-policies-refund-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started get-all-cancelled-policies-refund-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <!-- ===================== FETCH LAST_PROCESSED_TS FROM TSConfig ===================== -->
+    <mongodb.findOne configKey="WSO2-Accelerator-DB">
+        <collection>TSConfig</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>mongodb_findOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Response from mongoDB for LAST_PROCESSED_TS++++++</message>
+    </log>
+
+    <property name="lastProcessedTsRaw"
+              expression="json-eval($.data.LAST_PROCESSED_TS)"
+              scope="default" type="STRING"/>
+
+    <!-- Apply default 1704067200 if TSConfig doc missing — mirrors Mule os:default-value -->
+    <script language="js"><![CDATA[
+        var raw = mc.getProperty("lastProcessedTsRaw");
+        var ts = (raw === null || raw === "null" || raw === "" || raw === undefined)
+                 ? 1704067200
+                 : parseInt(raw, 10);
+        mc.setProperty("lastProcessedTs", String(ts));
+    ]]></script>
+
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Resolved lastProcessedTs (with default fallback)++++++</message>
+    </log>
+
+    <!-- ===================== BUILD POLICY QUERY ===================== -->
+    <payloadFactory media-type="json">
+        <format>
+            {
+                "policyStatusCode": "$1",
+                "policyrefundDate": {
+                    "$2": $3
+                }
+            }
+        </format>
+        <args>
+            <arg evaluator="xml" expression="$ctx:policyStatus"/>
+            <arg evaluator="xml" expression="$ctx:op_gt"/>
+            <arg evaluator="xml" expression="$ctx:lastProcessedTs"/>
+        </args>
+    </payloadFactory>
+
+    <property name="policyMongoQuery" expression="json-eval($)" scope="default" type="STRING"/>
+
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>MongoQuery (policies)++++++</message>
+    </log>
+
+    <!-- ===================== FETCH CANCELLED POLICIES ===================== -->
+    <mongodb.find configKey="WSO2-Accelerator-DB">
+        <collection>policies</collection>
+        <query>{$ctx:policyMongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>mongodb_findOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Response from mongoDB Policies collection++++++</message>
+    </log>
+
+    <!-- ===================== TRANSFORM ===================== -->
+    <script language="js"><![CDATA[
+        var result = [];
+        var data = mc.getPayloadJSON();
+
+        if (data && data.data) {
+            data = data.data;
+        }
+
+        if (data && data.length > 0) {
+            for (var i = 0; i < data.length; i++) {
+                var item = data[i];
+                result.push({
+                    policyNumber    : item.policyNumber    || null,
+                    quoteId         : (item.quote && item.quote.quoteId !== undefined)
+                                        ? item.quote.quoteId : null,
+                    termEndDate     : item.termEndDate     || null,
+                    productCode     : item.productCode     || null,
+                    policyStatusCode: item.policyStatusCode || null,
+                    termStatusCode  : item.termStatusCode  || null,
+                    generatedDate   : item.policyNumber    || null
+                });
+            }
+
+            var currentTs = Math.floor(new Date().getTime() / 1000);
+            mc.setProperty("newTs", String(currentTs));
+        }
+
+        mc.setPayloadJSON(result);
+    ]]></script>
+
+    <!-- Preserve transformed payload before updateOne overwrites body -->
+    <property name="transformedPoliciesPayload" expression="json-eval($)" scope="default" type="STRING"/>
+
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Transformed payload — about to conditionally update LAST_PROCESSED_TS++++++</message>
+    </log>
+
+        <!-- ===================== UPDATE LAST_PROCESSED_TS (only if records found) ===================== -->
+    <filter xpath="boolean(get-property('newTs'))">
+        <then>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                        "$1": {
+                            "LAST_PROCESSED_TS": $2
+                        }
+                    }
+                </format>
+                <args>
+                    <arg evaluator="xml" expression="$ctx:op_set"/>
+                    <arg evaluator="xml" expression="$ctx:newTs"/>
+                </args>
+            </payloadFactory>
+
+            <property name="tsUpdatePayload" expression="json-eval($)" scope="default" type="STRING"/>
+
+            <mongodb.updateOne configKey="WSO2-Accelerator-DB">
+                <collection>TSConfig</collection>
+                <query>{$ctx:mongoQuery}</query>
+                <update>{$ctx:tsUpdatePayload}</update>
+                <upsert>true</upsert>
+                <responseVariable>mongodb_updateOne_response</responseVariable>
+                <overwriteBody>false</overwriteBody>
+            </mongodb.updateOne>
+
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>LAST_PROCESSED_TS updated in TSConfig++++++</message>
+            </log>
+        </then>
+        <else>
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>No cancelled policies found — LAST_PROCESSED_TS not updated++++++</message>
+            </log>
+        </else>
+    </filter>
+    <!-- ===================== RESTORE RESPONSE PAYLOAD ===================== -->
+    <payloadFactory media-type="json">
+        <format>$1</format>
+        <args>
+            <arg expression="$ctx:transformedPoliciesPayload"/>
+        </args>
+    </payloadFactory>
+
+    <!-- ===================== END LOGGING ===================== -->
+    <property name="LatencyMs"
+              expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="refund-sapi-api"/>
+        <with-param name="sequence" value="get-all-cancelled-policies-refund-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended get-all-cancelled-policies-refund-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+</sequence>

@@ -1,0 +1,122 @@
+<sequence name="claim-papi-postLossItemsByClaimId-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')"/>
+        <property name="updatedPayload" expression="json-eval($)" type="STRING"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi"/>
+        <with-param name="sequence" value="claim-papi-postLossItemsByClaimId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started claim-papi-postLossItemsByClaimId-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+<script language="js"><![CDATA[
+
+var updatedPayload = mc.getProperty("updatedPayload");
+
+// Convert string → JSON
+if (typeof updatedPayload === "string") {
+    updatedPayload = JSON.parse(updatedPayload);
+}
+
+if (!updatedPayload || !updatedPayload.claimRequest) {
+    throw "updatedPayload or claimRequest is missing";
+}
+
+var req = updatedPayload.claimRequest;
+
+// Date functions
+var currentDate = new Date();
+
+// Format yyyy-MM-dd
+function formatDate(date) {
+    return date.getFullYear() + "-" +
+        ("0" + (date.getMonth() + 1)).slice(-2) + "-" +
+        ("0" + date.getDate()).slice(-2);
+}
+
+// Generate LossId (yyyyMMddHHSSS)
+function generateLossId(date) {
+    return date.getFullYear().toString() +
+        ("0" + (date.getMonth() + 1)).slice(-2) +
+        ("0" + date.getDate()).slice(-2) +
+        ("0" + date.getHours()).slice(-2) +
+        ("0" + date.getSeconds()).slice(-2) +
+        ("00" + date.getMilliseconds()).slice(-3);
+}
+
+var ts = formatDate(currentDate);
+var LossId = generateLossId(currentDate);
+
+// Extract values 
+var policy = req.policy || {};
+var insurableObject = (policy.insurableObjects || [])[0] || {};
+var coverage = (insurableObject.coverage || [])[0] || {};
+var lossItem = (req.lossItems || [])[0] || {};
+
+// Filter POLICY_HOLDER
+var reportedBy = "POLICY_HOLDER";
+if (req.parties && req.parties.length > 0) {
+    for (var i = 0; i < req.parties.length; i++) {
+        if (req.parties[i].partyTypeCode === "POLICY_HOLDER") {
+            reportedBy = req.parties[i].partyTypeCode;
+            break;
+        }
+    }
+}
+
+// Estimated amount
+var estimatedLoss = lossItem.estimatedLossAmount || 0;
+
+// Severity logic
+var severityCode = "HIGH";
+if (estimatedLoss <= 5000) {
+    severityCode = "LOW";
+} else if (estimatedLoss <= 20000) {
+    severityCode = "MODERATE";
+}
+
+// Final payload
+var result = {
+    lossItemIdentifier: "LOSS-" + LossId,
+    insurableObjectIdentifier: insurableObject.insurableObjectIdentifier,
+    coverageIdentifier: coverage.coverageIdentifier,
+    lossTypeCode: lossItem.lossType,
+    damageCategory: (req.accidentDetails && req.accidentDetails.cause) || "UNKNOWN",
+    description: (req.accidentDetails && req.accidentDetails.description) || req.claimDescription,
+    reportedBy: reportedBy,
+    incidentDateTime: req.incidentDateTime,
+    reportedDateTime: ts,
+    estimatedLossAmount: estimatedLoss,
+    currencyCode: (coverage.limits && coverage.limits[0] && coverage.limits[0].currencyCode) || "USD",
+    severityCode: severityCode,
+    lossLocation: "FRONT_LEFT",
+    lossStatus: "REPORTED"
+};
+
+// Set payload
+mc.setPayloadJSON(result);
+mc.setProperty("messageType", "application/json");
+
+]]></script>
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING"
+                  expression="fn:concat('/api/claim/', get-property('claimId'), '/loss-items')"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="claim-assessment-sapi-restEndpoint"/>
+    </call>
+    <property name="LatencyMs"
+              expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi"/>
+        <with-param name="sequence" value="claim-papi-postLossItemsByClaimId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="END claim-papi-postLossItemsByClaimId-sequence"/>
+        <with-param name="status" value="Ended"/>
+    </call-template>
+</sequence>

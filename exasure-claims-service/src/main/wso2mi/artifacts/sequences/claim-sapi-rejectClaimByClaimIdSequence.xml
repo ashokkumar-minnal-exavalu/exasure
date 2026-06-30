@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-sapi-rejectClaimByClaimIdSequence" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="rejectClaimByClaimIdSequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating rejectClaimByClaimIdSequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="claimId" expression="get-property('uri.var.claimId')" scope="default" type="STRING"/>
+    <property name="queryDoc" type="STRING" expression="fn:concat('{&quot;claimRequest.claimId&quot;:&quot;', $ctx:claimId, '&quot;}')"/>
+    <payloadFactory media-type="json">
+        <format>{
+            "$set": {
+            "claimRequest.rejectionMessage": "$1",
+            "claimRequest.claimStatusCode": "Rejected"
+            }
+            }</format>
+        <args>
+            <arg evaluator="json" expression="$.rejectionMessage"/>
+            <arg evaluator="json" expression="'Rejected'"/>
+        </args>
+    </payloadFactory>
+    <property name="updateDoc" expression="json-eval($.)" scope="default"/>
+    <mongodb.updateOne configKey="wso2DB">
+        <collection>Claims</collection>
+        <query>{$ctx:queryDoc}</query>
+        <update>{$ctx:updateDoc}</update>
+        <upsert>false</upsert>
+        <responseVariable>mongodb_updateOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.updateOne>
+    <filter source="json-eval($.matchedCount)" regex="1">
+        <then>
+            <payloadFactory media-type="json">
+                <format>{
+                    "isSuccessfull": true,
+                    "claimId": "$1",
+                    "message": "Claim updated successfully"
+                    }</format>
+                <args>
+                    <arg evaluator="xml" expression="$ctx:claimId"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </then>
+        <else>
+            <payloadFactory media-type="json">
+                <format>{
+                    "isSuccessfull": false,
+                    "errorCode": "404",
+                    "errorMessage": "No claims record found for claimId: $1",
+                    "errorDetails": "No claims record found for claimId: $1",
+                    "transactionId": "$2",
+                    "timeStamp": "$3"
+                    }</format>
+                <args>
+                    <arg evaluator="xml" expression="$ctx:claimId"/>
+                    <arg evaluator="xml" expression="get-property('CORRELATION_ID')"/>
+                    <arg evaluator="xml" expression="get-property('SYSTEM_TIMESTAMP')"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </else>
+    </filter>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="rejectClaimByClaimIdSequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending rejectClaimByClaimIdSequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

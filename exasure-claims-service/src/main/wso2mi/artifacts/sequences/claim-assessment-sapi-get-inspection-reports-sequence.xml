@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-assessment-sapi-get-inspection-reports-sequence"
+          trace="disable"
+          xmlns="http://ws.apache.org/ns/synapse">
+
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="ContentType" value="application/json" scope="axis2"/>
+
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')"/>
+    </propertyGroup>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assessment-sapi"/>
+        <with-param name="sequence" value="claim-assessment-sapi-get-inspection-reports-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Start claim-assessment-sapi-get-inspection-reports-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <log level="custom">
+        <property name="message" value="Starting get_inspectionReports_subflow"/>
+        <property name="claimId" expression="$ctx:claimId"/>
+    </log>
+
+    <payloadFactory media-type="json">
+        <format>
+            {
+              "claimId": "$1"
+            }
+        </format>
+        <args>
+            <arg expression="$ctx:claimId"/>
+        </args>
+    </payloadFactory>
+
+    <enrich>
+        <source clone="true" type="body"/>
+        <target property="mongoQuery" type="property"/>
+    </enrich>
+
+    <mongodb.find configKey="MongoDB-Connection-claimassessment">
+        <collection>inspectionReports</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>inspection_find_response</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+
+    <log level="custom">
+        <property name="DB_FIND_RESPONSE" expression="json-eval($.)"/>
+    </log>
+
+    <script language="js"><![CDATA[
+        var res = mc.getPayloadJSON();
+        var doc = null;
+
+        if (res && res.found === true && res.data && Array.isArray(res.data) && res.data.length > 0) {
+            doc = res.data[0];
+        } else if (Array.isArray(res) && res.length > 0) {
+            doc = res[0];
+        }
+
+        if (doc) {
+            if (doc._id) {
+                delete doc._id;
+            }
+
+            if (doc.adjusterDetails) {
+                if (doc.adjusterDetails.assignedDate &&
+                    typeof doc.adjusterDetails.assignedDate === 'object' &&
+                    doc.adjusterDetails.assignedDate.$date) {
+                    doc.adjusterDetails.assignedDate = doc.adjusterDetails.assignedDate.$date;
+                }
+
+                if (doc.adjusterDetails.inspectionDate &&
+                    typeof doc.adjusterDetails.inspectionDate === 'object' &&
+                    doc.adjusterDetails.inspectionDate.$date) {
+                    doc.adjusterDetails.inspectionDate = doc.adjusterDetails.inspectionDate.$date;
+                }
+            }
+
+            var response = {
+                claimId: doc.claimId,
+                inspectionId: doc.inspectionId,
+                inspectionType: doc.inspectionType,
+                inspectionStatus: doc.inspectionStatus,
+                adjusterDetails: {
+                    adjusterId: doc.adjusterDetails ? doc.adjusterDetails.adjusterId : null,
+                    adjusterType: doc.adjusterDetails ? doc.adjusterDetails.adjusterType : null,
+                    assignedDate: doc.adjusterDetails ? doc.adjusterDetails.assignedDate : null,
+                    inspectionDate: doc.adjusterDetails ? doc.adjusterDetails.inspectionDate : null
+                },
+                lossItemReference: {
+                    lossItemIdentifier: doc.lossItemReference ? doc.lossItemReference.lossItemIdentifier : null,
+                    insurableObjectIdentifier: doc.lossItemReference ? doc.lossItemReference.insurableObjectIdentifier : null,
+                    coverageIdentifier: doc.lossItemReference ? doc.lossItemReference.coverageIdentifier : null,
+                    lossTypeCode: doc.lossItemReference ? doc.lossItemReference.lossTypeCode : null,
+                    damageCategory: doc.lossItemReference ? doc.lossItemReference.damageCategory : null
+                },
+                inspectionFindings: {
+                    damageConfirmed: doc.inspectionFindings ? doc.inspectionFindings.damageConfirmed : null,
+                    damageDescription: doc.inspectionFindings ? doc.inspectionFindings.damageDescription : null,
+                    damageExtent: doc.inspectionFindings ? doc.inspectionFindings.damageExtent : null,
+                    severityCode: doc.inspectionFindings ? doc.inspectionFindings.severityCode : null,
+                    causeOfLossConfirmed: doc.inspectionFindings ? doc.inspectionFindings.causeOfLossConfirmed : null
+                },
+                assessment: {
+                    assessedLossAmount: doc.assessment ? doc.assessment.assessedLossAmount : null,
+                    currencyCode: doc.assessment ? doc.assessment.currencyCode : null,
+                    depreciationAmount: doc.assessment ? doc.assessment.depreciationAmount : null,
+                    deductibleAmount: doc.assessment ? doc.assessment.deductibleAmount : null,
+                    netPayableAmount: doc.assessment ? doc.assessment.netPayableAmount : null
+                },
+                inspectionOutcome: {
+                    recommendation: doc.inspectionOutcome ? doc.inspectionOutcome.recommendation : null,
+                    remarks: doc.inspectionOutcome ? doc.inspectionOutcome.remarks : null
+                }
+            };
+
+            mc.setProperty("dataFound", "true");
+            mc.setPayloadJSON(response);
+        } else {
+            mc.setProperty("dataFound", "false");
+        }
+    ]]></script>
+
+    <filter xpath="$ctx:dataFound = 'true'">
+        <then>
+            <log level="custom">
+                <property name="message" value="Ending get_inspectionReports_subflow"/>
+                <property name="claimId" expression="$ctx:claimId"/>
+                <property name="responsePayload" expression="json-eval($.)"/>
+            </log>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property name="ERROR_CODE" value="404" scope="default" type="STRING"/>
+                <property name="ERROR_MESSAGE" value="Not Found" scope="default" type="STRING"/>
+                <property name="ERROR_DETAIL"
+                          value="Inspection report not found for given claimId"
+                          scope="default"
+                          type="STRING"/>
+            </propertyGroup>
+
+            <call-template target="Common-Log-Template-V1">
+                <with-param name="service" value="claim-assessment-sapi"/>
+                <with-param name="sequence" value="claim-assessment-sapi-get-inspection-reports-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/>
+                <with-param name="status" value="ERROR"/>
+            </call-template>
+
+            <sequence key="claim-assessment-sapi-fault-sequence"/>
+        </else>
+    </filter>
+
+    <property name="LatencyMs"
+              expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assessment-sapi"/>
+        <with-param name="sequence" value="claim-assessment-sapi-get-inspection-reports-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended claim-assessment-sapi-get-inspection-reports-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+</sequence>

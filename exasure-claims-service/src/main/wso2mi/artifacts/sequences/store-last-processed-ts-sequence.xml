@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="store-last-processed-ts-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+
+    <!-- Step 1: Create JSON update -->
+    <payloadFactory media-type="json">
+        <format>
+            {
+                "$set": {
+                    "key": "LAST_PROCESSED_TS",
+                    "lastProcessedTs": $1
+                }
+            }
+        </format>
+        <args>
+            <arg evaluator="xml" expression="get-property('SYSTEM_TIME')"/>
+        </args>
+    </payloadFactory>
+
+    <!-- Step 2: Query -->
+    <property name="mongoQuery"
+              value='{ "key": "LAST_PROCESSED_TS" }'
+              type="STRING"/>
+
+    <!-- Step 3: Update -->
+    <property name="mongoUpdate"
+              expression="json-eval($)"/>
+
+    <!-- Debug -->
+    <log level="custom">
+        <property name="mongoQuery" expression="$ctx:mongoQuery"/>
+        <property name="mongoUpdate" expression="$ctx:mongoUpdate"/>
+    </log>
+
+    <!-- Step 4: Mongo -->
+    <mongodb.updateOne configKey="MongoDB-Connection-claim-payment">
+        <collection>configCollection</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <update>{$ctx:mongoUpdate}</update>
+        <upsert>true</upsert>
+        <responseVariable>mongoUpdateResponse</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.updateOne>
+
+
+
+
+</sequence>

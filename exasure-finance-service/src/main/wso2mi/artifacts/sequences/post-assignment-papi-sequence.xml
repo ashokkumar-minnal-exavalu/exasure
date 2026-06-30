@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="post-assignment-papi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-papi-api"/>
+        <with-param name="sequence" value="post-assignment-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating post-assignment-papi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <!-- Start Log -->
+    <log level="custom">
+        <property name="message" value="Starting add_assignment_subflow"/>
+        <property name="claimId++++++++" expression="get-property('claimId')"/>
+    </log>
+    <property name="updatedPayload" expression="get-property('updatedPayload')"/>
+    <!-- Coverage Status Log -->
+    <log level="custom">
+        <property name="coverageStatus++++++++++" expression="get-property('coverageStatus')"/>
+    </log>
+    <property name="coverageStatus" expression="get-property('coverageStatus')"/>
+    <enrich>
+        <source clone="false" property="updatedPayload" type="property"/>
+        <target action="replace" type="body"/>
+    </enrich>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>payload before filter for getting adjuster details+++++++++++</message>
+    </log>        
+    <!-- Condition: coverageStatus == 'validated' -->
+    <filter xpath="$ctx:coverageStatus = 'validated'">
+        <then>
+            <!-- Extract values -->
+            <property name="state" expression="json-eval($.claimRequest.incidentLocation.address.stateCode)" scope="default"/>
+            <property name="skill" expression="json-eval($.claimRequest.claimType)" scope="default"/>
+            <log level="custom">
+                <property name="REST_URL_POSTFIX+++++++++" expression="fn:concat('/api/adjusters', '?state=', get-property('state'),'&amp;status=ACTIVE','&amp;skill=', get-property('skill'))" scope="axis2"/>
+            </log>                      
+            <!-- Call GET Adjuster API -->
+            <propertyGroup description="inputProperty">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" expression="fn:concat('/api/adjusters', '?state=', get-property('state'),'&amp;status=ACTIVE','&amp;skill=', get-property('skill'))" scope="axis2"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="claim-assignment-sapi-restEndpoint"/>
+            </call>
+            <log category="INFO" logMessageID="true" logFullPayload="true">
+                <message>Response from get adjuster endpoint call+++++++++++</message>
+            </log>
+        </then>
+        <else>
+        </else>
+    </filter>
+    <property name="adjusterId" expression="json-eval($.adjusterId)" scope="default"/>          
+    <!-- Build Assignment Request -->
+    <payloadFactory media-type="json">
+        <format>
+            {
+              "assignmentType": "AUTO",
+              "assignedBy": "SYSTEM",
+              "assignmentReason": "Auto assignment based on rules",
+              "adjusterId": "$1"
+            }
+        </format>
+        <args>
+            <arg expression="$ctx:adjusterId"/>
+        </args>
+    </payloadFactory>
+    <property name="initPayload" expression="json-eval($)" scope="default"/>    
+    <!-- Set URI param -->
+    <property name="claimId" expression="get-property('claimId')" scope="default"/>    
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>payload for create assignment endpoint call+++++++++++</message>
+        <property name="initPayload+++++++++++" expression="json-eval($)" scope="default"/>    
+        <property name="REST_URL_POSTFIX+++++++++" scope="axis2" expression="fn:concat('/claim/', $ctx:claimId, '/assign')"/>                
+    </log>
+    
+    <!-- POST Create Assignment -->
+
+
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/claim/', $ctx:claimId, '/assign')"/>                
+    </propertyGroup>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>before calling create assignment sapi+++++++++++</message>
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/claim/', $ctx:claimId, '/assign')"/>                
+    </log>      
+    <call>
+        <endpoint key="claim-assignment-sapi-restEndpoint"/>
+    </call>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>after calling create assignment sapi+++++++++++</message>
+    </log>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi-api"/>
+        <with-param name="sequence" value="post-assignment-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended post-assignment-papi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

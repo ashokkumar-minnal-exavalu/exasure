@@ -1,0 +1,65 @@
+<sequence name="claim-sapi-claimSettlementSequence" xmlns="http://ws.apache.org/ns/synapse">
+	<!-- ================= STORE REQUEST JSON ================= -->
+	<call-template target="Common-Log-Template-V1" description="start-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="claimSettlementSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Initiating claimSettlementSequence"/>
+		<with-param name="status" value="START"/>
+	</call-template>
+	<enrich>
+		<source type="body"/>
+		<target type="property" property="REQ_JSON"/>
+	</enrich>
+	<propertyGroup>
+		<property name="claimId" expression="json-eval($.claims.claimId)"/>
+		<property name="claimSettlementId" expression="json-eval($.claimSettlementId)"/>
+	</propertyGroup>
+	<mongodb.insertOne configKey="wso2DB">
+		<collection>ClaimsToBePaid</collection>
+		<document>{json-eval($)}</document>
+		<responseVariable>dbResult</responseVariable>
+		<overwriteBody>true</overwriteBody>
+	</mongodb.insertOne>
+	<property name="ContentType" scope="transport" value="application/json"/>
+	<property name="INSERTED_COUNT" expression="json-eval($.insertedCount)" scope="default"/>
+	<filter xpath="$ctx:INSERTED_COUNT = '1'">
+		<then>
+			<payloadFactory media-type="json">
+				<format>
+					{
+					"isSuccessfull": true,
+					"claimId": "$1",
+					"claimSettlementId": "$2",
+					"message": "Claim settlement request registered successfully"
+					}
+				</format>
+				<args>
+					<arg evaluator="default" expression="get-property('claimId')"/>
+					<arg evaluator="default" expression="get-property('claimSettlementId')"/>
+				</args>
+			</payloadFactory>
+			<property name="HTTP_SC" value="201" scope="axis2"/>
+		</then>
+		<else>
+			<payloadFactory media-type="json">
+				<format>
+					{
+					"isSuccessfull": false,
+					"message": "Claim registration failed"
+					}
+				</format>
+				<args/>
+			</payloadFactory>
+			<property name="HTTP_SC" value="500" scope="axis2"/>
+		</else>
+	</filter>
+	<call-template target="Common-Log-Template-V1" description="end-log">
+		<with-param name="service" value="claim-api"/>
+		<with-param name="sequence" value="createClaimSequence"/>
+		<with-param name="level" value="INFO"/>
+		<with-param name="message" value="Ending createClaimSequence"/>
+		<with-param name="status" value="END"/>
+	</call-template>
+	<respond/>
+</sequence>

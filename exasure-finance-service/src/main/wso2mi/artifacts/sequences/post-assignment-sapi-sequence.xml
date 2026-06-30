@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="post-assignment-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="post-assignment-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating post-assignment-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="claimId" expression="get-property('uri.var.claimId')"/>
+    <property name="initPayload" expression="json-eval($)" scope="default"/>    
+    <!-- Start Logger -->
+    <log level="custom">
+        <property name="claimId" expression="$ctx:claimId"/>
+        <property name="initPayload+++++++++++" expression="get-property('initPayload')"/>
+    </log>
+    <!-- Generate Timestamp -->
+    <property name="nowTs" expression="get-property('SYSTEM_TIME')" scope="default"/>
+    <!-- Create Response (Equivalent to DataWeave createResponse variable) -->
+    <script language="js"><![CDATA[
+        var nowTs = mc.getProperty("nowTs");
+
+        // Parse initPayload safely
+        var initPayload = mc.getProperty("initPayload");
+        if (typeof initPayload === "string") {
+            initPayload = JSON.parse(initPayload);
+        }
+
+        var createResponse = {
+            assignmentId: "ASN-" + nowTs,
+            claimId: mc.getProperty("claimId"),
+            adjusterId: initPayload.adjusterId,
+            assignmentStatus: "ASSIGNED",
+            assignmentType: initPayload.assignmentType || "AUTO",
+            assignedDate: new Date().toISOString()
+        };
+
+        // ✅ Set as final payload
+        mc.setPayloadJSON(createResponse);
+
+    ]]></script>
+    <log category="INFO" logMessageID="true" logFullPayload="true">
+        <message>Payload for create assignment before insert to Mongo+++++++++</message>
+    </log>
+    <property name="adjusterId" expression="json-eval($.adjusterId)" scope="default"/>   
+    <mongodb.insertOne configKey="claim-assignment-sapi-MongoDB">
+        <collection>claimsAssignments</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>mongodb_insertOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+    <property name="insertedCount" expression="json-eval($.insertedCount)" scope="default"/>
+    <filter xpath="$ctx:insertedCount = 1">
+        <then>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "adjusterId": "$1",
+                    "status": "CREATED"
+                    }
+                </format>
+                <args>
+                    <arg expression="$ctx:adjusterId"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <propertyGroup description="error details">
+                <property value="500" name="ERROR_CODE" scope="default" type="STRING"/>
+                <property value="Internal Server Error" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+                <property value="assignment is not created" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+            <call-template description="Error Log" target="Common-Log-Template-v1">
+                <with-param name="service" value="claim-assignment-api"/>
+                <with-param name="sequence" value="post-assignment-sapi-sequence"/>
+                <with-param name="level" value="INFO"/>
+                <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/> 
+                <with-param name="status" value="ERROR"/>
+            </call-template>        
+            <sequence key="claim-assignment-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="post-assignment-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended post-assignment-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

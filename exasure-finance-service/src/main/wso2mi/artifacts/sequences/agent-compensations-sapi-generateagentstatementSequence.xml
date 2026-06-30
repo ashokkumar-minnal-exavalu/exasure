@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="agent-compensations-sapi-generateagentstatementSequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="agent-compensation-sapi-api"/>
+        <with-param name="sequence" value="agent-compensations-sapi-generateagentstatementSequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started agent-compensations-sapi-generateagentstatementSequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <filter source="json-eval($)" regex="^\s*(\{\}|\[\])?\s*$">
+    <then>
+        <property name="HTTP_SC" value="400" scope="axis2" type="STRING"/>
+        <property name="ERROR_MESSAGE" value="Request payload cannot be empty"/>
+<property name="ERROR_DETAIL" value="Empty or missing request body"/>
+<property name="ERROR_CODE" value="400" type="STRING"/>
+        <sequence key="agent-compensation-sapi-fault-sequence"/>
+    </then>
+</filter>
+    <script language="js"><![CDATA[
+var payload = mc.getPayloadJSON() || {};
+
+var now = new Date();
+
+function pad(n){ return n < 10 ? '0'+n : n; }
+
+var ts =
+ now.getFullYear().toString() +
+ pad(now.getMonth()+1) +
+ pad(now.getDate()) +
+ pad(now.getHours()) +
+ pad(now.getMinutes()) +
+ pad(now.getSeconds()) +
+ now.getMilliseconds();
+
+payload.statementIdentifier = "STI-" + ts;
+payload.agentIdentifier = mc.getProperty("agentId");
+payload.generatedDate = now.getTime();
+mc.setPayloadJSON(payload);
+]]></script>
+    <mongodb.insertOne configKey="MongoDB-Connection-AgentCompensation-sapi-API">
+        <collection>agentStatements</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>mongodb_insertOne_355</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.insertOne>
+    <filter source="json-eval($)" regex="^$">
+    <then>
+        <propertyGroup description="error details">
+            <property value="500" name="ERROR_CODE" scope="default" type="STRING"/>
+            <property value="Internal Server Error" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="Data insert failed" name="ERROR_DETAIL" scope="default" type="STRING"/>
+        </propertyGroup>
+        <sequence key="agent-compensation-sapi-fault-sequence"/>
+    </then>
+</filter>
+<payloadFactory media-type="json">
+    <format>
+{
+ "statementIdentifier":"$1",
+ "agentIdentifier":"$2",
+ "statementPeriod":{
+   "from":"$3",
+   "to":"$4"
+ },
+ "currencyCode":"$5",
+ "summary":{
+   "totalCalculatedAmount":$6,
+   "totalPaidAmount":$7,
+   "netPayableAmount":$8
+ },
+ "commissionCount":$9,
+ "statementStatusCode":"$10",
+ "generatedDate":$11
+}
+    </format>
+
+    <args>
+        <arg evaluator="json" expression="$.statementIdentifier"/>
+        <arg evaluator="xml" expression="$ctx:agentId"/>
+        <arg evaluator="json" expression="$.statementPeriod.from"/>
+        <arg evaluator="json" expression="$.statementPeriod.to"/>
+        <arg evaluator="json" expression="$.currencyCode"/>
+
+        <arg evaluator="json" expression="$.summary.totalCalculatedAmount"/>
+        <arg evaluator="json" expression="$.summary.totalPaidAmount"/>
+        <arg evaluator="json" expression="$.summary.netPayableAmount"/>
+
+        <arg evaluator="json" expression="$.commissionCount"/>
+        <arg evaluator="json" expression="$.statementStatusCode"/>
+        <arg evaluator="json" expression="$.generatedDate"/>
+    </args>
+</payloadFactory>
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="agent-compensation-sapi-api"/>
+    <with-param name="sequence" value="agent-compensations-sapi-generateagentstatementSequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="Ended agent-compensations-sapi-generateagentstatementSequence"/>
+    <with-param name="status" value="END"/>
+</call-template>
+</sequence>

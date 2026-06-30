@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="post-adjuster-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="post-adjuster-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating post-adjuster-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="ts" expression="get-property('SYSTEM_TIME')" scope="default"/>
+
+    <!-- ========================= -->
+    <!-- Generate adjusterId -->
+    <!-- ADJ- + timestamp -->
+    <!-- ========================= -->
+    <property name="adjusterId" expression="fn:concat('ADJ-', get-property('ts'))" scope="default"/>
+
+    <!-- ========================= -->
+    <!-- Build vars.data -->
+    <!-- ("adjusterId": ...) ++ payload -->
+    <!-- ========================= -->
+    <script language="js"><![CDATA[
+        var payload = mc.getPayloadJSON();
+        var adjusterId = mc.getProperty("adjusterId");
+
+        if (!payload) {
+            payload = {};
+        }
+
+        var data = {
+            adjusterId: adjusterId
+        };
+
+        // Merge payload into data
+        for (var key in payload) {
+            data[key] = payload[key];
+        }
+        mc.setProperty("adjusterId", adjusterId);
+        mc.setPayloadJSON(data);
+    ]]></script>
+    <property name="data" expression="get-property('data')" scope="default"/>    
+    <mongodb.insertOne configKey="claim-assignment-sapi-MongoDB">
+        <collection>adjuster</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>mongodb_insertOne_1</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+    <property name="insertedCount" expression="json-eval($.insertedCount)" scope="default"/>
+    <filter xpath="$ctx:insertedCount = 1">
+        <then>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "adjusterId": "$1",
+                    "status": "CREATED"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="xml" expression="get-property('adjusterId')"/>
+                </args>
+            </payloadFactory>
+        </then>
+    <else>
+        <propertyGroup description="error details">
+            <property value="500" name="ERROR_CODE" scope="default" type="STRING"/>
+            <property value="Internal Server Error" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="adjuster is not created" name="ERROR_DETAIL" scope="default" type="STRING"/>
+            </propertyGroup>
+        <call-template description="Error Log" target="Common-Log-Template-v1">
+            <with-param name="service" value="claim-assignment-api"/>
+            <with-param name="sequence" value="post-adjuster-sapi-sequence"/>
+            <with-param name="level" value="INFO"/>
+            <with-param name="message" value="{$ctx:ERROR_MESSAGE}"/> 
+            <with-param name="status" value="ERROR"/>
+            </call-template>        
+        <sequence key="claim-assignment-sapi-fault-sequence"/>
+        </else>
+    </filter>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="post-adjuster-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended post-adjuster-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

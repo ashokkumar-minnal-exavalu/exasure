@@ -1,0 +1,364 @@
+<?xml version='1.0' encoding='utf-8'?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="exasure-api" context="/exasure-api"><resource methods="POST" uri-template="/agent-compensation-sapi-api/agent-compensations">
+        <inSequence>
+            <sequence key="agent-compensations-sapi-createcompensationSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agent-compensation-sapi-api/agent-compensations">
+        <inSequence>
+            <property name="agentId" expression="$url:agentId" />
+            <sequence key="agent-compensations-sapi-getcompensationSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/agent-compensation-sapi-api/agents/{agentId}/statements/generate">
+        <inSequence>
+            <property name="agentId" expression="get-property('uri.var.agentId')" scope="default" />
+            
+            <sequence key="agent-compensations-sapi-generateagentstatementSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agent-compensation-sapi-api/agents/{agentId}/statements">
+        <inSequence>
+            <property name="agentId" expression="get-property('uri.var.agentId')" scope="default" />
+            
+            <sequence key="agent-compensations-sapi-getagentstatementSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/agent-compensation-sapi-api/agents/fetch-all-agentStatement">
+        <inSequence>
+            <sequence key="agent-compensations-sapi-fetchallagentstatementSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-account-sapi/api/billing-accounts">
+        <inSequence>
+            <sequence key="billing-account-sapi-createBillingAccount-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-account-sapi/api/billing-accounts/{billingAccountId}">
+        <inSequence>
+            <sequence key="billing-account-sapi-getBillngAccount-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/billing-payment-papi/api/refund">
+        <inSequence>
+            <sequence key="refund-billing-payment-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+
+    <resource methods="GET" uri-template="/billing-payment-papi/api/agent">
+        <inSequence>
+            <sequence key="billing-payment-papi-agent-payout-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+
+    
+    <resource methods="GET" uri-template="/billing-payment-papi/api/billing-payment/agents/{agentId}/statements">
+        <inSequence>
+            <sequence key="get-agent-statements-billing-payment-papi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence />
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-papi/api/mail">
+        <inSequence>
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-papi/api/billing-payment/billing">
+        <inSequence>
+            <sequence key="billing-payment-papi-create-billing-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-papi/api/billing-payment/invoices/{invoiceId}">
+        <inSequence>
+            <sequence key="billing-payment-papi-retrive-invoices-by-invoiceId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+            <sequence key="billing-payment-papi-fault-sequence" />
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/store-payout">
+        <inSequence>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>${payload}</message>
+            </log>
+            <sequence key="billing-payment-sapi-store-payout-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-sapi/api/billing-payment/retrive-payout/{payoutId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-retrive-payout-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/payout">
+        <inSequence>
+            <sequence key="billing-payment-sapi-create-payout-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/payment-intent">
+        <inSequence>
+            <sequence key="billing-payment-sapi-create-payment-intent-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/store-payment">
+        <inSequence>
+            <sequence key="billing-payment-sapi-create-store-payment-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/billing-payment-sapi/api/billing-payment/payment_intents/{payment-intentId}">
+        <inSequence>
+            <sequence key="billing-payment-sapi-retrive-payment-intent-by-paymentIntentId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/billing-payment-sapi/api/billing-payment/payment/{paymentIntentId}/confirm">
+        <inSequence>
+            <sequence key="billing-payment-sapi-confirm-payment-sequence" />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/claim-payment-papi/api/payment">
+        <inSequence>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>start</message>
+            </log>
+            <sequence key="claim-payment-papi-initiate-payment-sequence" />
+        </inSequence>
+        <faultSequence>
+            <sequence key="claim-payment-papi-common-fault-sequence" />
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/claim-payment-sapi/api/payment/store/transaction">
+        <inSequence>
+            <sequence key="claim-payment-sapi-storeTransaction-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+
+    <resource methods="GET" uri-template="/claim-payment-sapi/api/payment/retrieve/claimsPaymentDetails">
+        <inSequence>
+            <sequence key="claim-payment-sapi-getAllClaimsPayments-sequence" />
+            <respond />
+        </inSequence>
+    </resource>
+
+   
+    <resource methods="GET" uri-template="/claim-payment-sapi/api/payment/retrieve/{transactionId}">
+        <inSequence>
+            <sequence key="claim-payment-sapi-getTransaction-sequence" />
+            <respond />
+        </inSequence>
+    </resource>
+    <resource methods="GET" uri-template="/claim-payment-sapi/api/payment/retrive/{paymentId}">
+        <inSequence>
+            <sequence key="claim-payment-sapi-paymentRetrive-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+        <resource methods="POST" uri-template="/claim-payment-sapi/api/payment/payout">
+        <inSequence>
+            <sequence key="claim-payment-sapi-create-payout-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+        <resource methods="POST" uri-template="/claim-payment-sapi/api/payment/token">
+        <inSequence>
+            <sequence key="claim-payment-sapi-create-token-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/finance-papi-api/treasury/transactions/{treasuryAccountId}">
+        <inSequence>
+            <property name="treasuryAccountId" expression="get-property('uri.var.treasuryAccountId')" scope="default" />
+            <sequence key="get-treasurydata-by-treasuryAccountIdSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="POST" uri-template="/general-ledger-sapi/api/entries">
+        <inSequence>
+            <sequence key="general-ledger-sapi-create-GL-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/general-ledger-sapi/api/entries/claims/{claimId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-get-GL-by-claimId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/general-ledger-sapi/api/entries/claims/{claimId}">
+        <inSequence>
+            <sequence key="general-ledger-sapi-update-GL-by-claimId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+<resource methods="GET" uri-template="/invoice-sapi/api/invoices/{invoiceId}">
+        <inSequence>
+            <sequence key="invoice-sapi-get-invoice-by-invoiceId-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/invoice-sapi/api/invoices">
+        <inSequence>
+            <sequence key="invoice-sapi-create-invoice-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/invoice-sapi/api/{invoiceId}/mark-paid">
+        <inSequence>
+            <sequence key="invoice-sapi-update-mark-paid-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/invoice-sapi/api/taxes/rates/{state}">
+        <inSequence>
+            <sequence key="invoice-sapi-get-tax-rate-by-state-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/payable-sapi/payables">
+        <inSequence>
+            <sequence key="post-payable-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/payable-sapi/payables/{claimId}">
+        <inSequence>
+            <sequence key="get-payable-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="PATCH" uri-template="/payable-sapi/payables/{claimId}">
+        <inSequence>
+            <sequence key="patch-payable-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>        
+<resource methods="POST" uri-template="/receivables-sapi/api/receivables">
+        <inSequence>
+            <sequence key="receivables-sapi-createReceivables-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/refund-sapi/api/refunds/create">
+        <inSequence>
+            <sequence key="create-refund-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="POST" uri-template="/refund-sapi/api/refunds/store-refund">
+        <inSequence>
+            <sequence key="store-refund-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>  
+    <resource methods="GET" uri-template="/refund-sapi/api/refunds/retrieve/{refundId}">
+        <inSequence>
+            <sequence key="fetch-refund-by-refundId-refund-sapi-sequence" />
+            <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>          
+<resource methods="PATCH" uri-template="/treasury-sapi-api/treasury/transactions/claims">
+        <inSequence>
+            <sequence key="treasury-transactions-for-claimSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+    <resource methods="GET" uri-template="/treasury-sapi-api/treasury/transactions/{treasuryAccountId}">
+        <inSequence>
+            <property name="treasuryAccountId" expression="get-property('uri.var.treasuryAccountId')" scope="default" />
+            <sequence key="treasury-transactions-balanceSequence" />
+        <respond />
+        </inSequence>
+        <faultSequence>
+        </faultSequence>
+    </resource>
+</api>

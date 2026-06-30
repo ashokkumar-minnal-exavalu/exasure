@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="billing-payment-sapi-create-store-payment-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="billing-payment-spi"/>
+        <with-param name="sequence" value="billing-payment-sapi-create-store-payment-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating billing-payment-sapi-create-store-payment-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <mongodb.insertOne configKey="wso2DB">
+        <collection>billingTransactions</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>dbResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.insertOne>
+    <propertyGroup>
+        <property name="timeStamp" expression="get-property('SYSTEM_DATE')" scope="default"/>
+        <property name="ContentType" scope="transport" value="application/json"/>
+        <property name="INSERTED_COUNT" expression="json-eval($.insertedCount)" scope="default"/>
+    </propertyGroup>
+    <filter xpath="$ctx:INSERTED_COUNT = 1">
+        <then>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "isSuccess": "true",
+                    "message": "Payment data store success."
+                    }
+                </format>
+                <args/>
+            </payloadFactory>
+            <property name="HTTP_SC" value="201" scope="axis2"/>
+        </then>
+        <else>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "$1",
+                    "errorMessage": "$2",
+                    "errorDetails": "Insertion of data failed",
+                    "transactionId": "$3",
+                    "timeStamp": "$4"
+                    }
+                </format>
+                <args>
+                    <arg expression="get-property('axis2','HTTP_SC')"/>
+                    <arg expression="get-property('ERROR_MESSAGE')"/>
+                    <arg expression="get-property('correlationId')"/>
+                    <arg expression="get-property('timeStamp')"/>
+                </args>
+            </payloadFactory>
+            <property name="HTTP_SC" value="500" scope="axis2"/>
+        </else>
+    </filter>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="billing-payment-spi"/>
+        <with-param name="sequence" value="billing-payment-sapi-create-store-payment-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ending billing-payment-sapi-create-store-payment-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="poll-mongodb-status-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <variable name="mongoQuery" value="{&quot;status&quot;:&quot;Accepted&quot;,&quot;emailSent&quot;:{&quot;$ne&quot;:true}}" type="STRING"/>
+    
+    <mongodb.find configKey="MongoDB-Connection-Policy-API">
+        <collection>policies</collection>
+        <query>${vars.mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit>10</limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_result</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+    
+    <variable name="isFound" expression="${payload.found}" type="STRING"/>
+    
+    <filter xpath="${vars.isFound == 'true'}">
+        <then>
+            <foreach expression="${payload.data}">
+                <sequence>
+                    <variable name="policyId" expression="${payload.policyId}" type="STRING"/>
+                    <variable name="productName" expression="${payload.productName}" type="STRING"/>
+                    <variable name="policyHolderId" expression="${payload.policyHolderId}" type="STRING"/>
+                    
+                    <email.send configKey="SMTPS-Email-Connection">
+                        <from>exavaluinsuranceaccelarator@gmail.com</from>
+                        <to>rishi.puri@exavalu.com</to>
+                        <subject>Policy Accepted - ${vars.policyId}</subject>
+                        <content>Dear Customer,
+
+Your policy with ID ${vars.policyId} for product ${vars.productName} has been accepted.
+
+Policy Holder ID: ${vars.policyHolderId}
+Status: Accepted
+
+Thank you for choosing our services.
+
+Best Regards,
+Insurance Team</content>
+                        <contentType>text/plain</contentType>
+                    </email.send>
+                    
+                    <variable name="updateQuery" value="{&quot;policyId&quot;:&quot;${vars.policyId}&quot;}" type="STRING"/>
+                    <variable name="updateDoc" value="{&quot;$set&quot;:{&quot;emailSent&quot;:true}}" type="STRING"/>
+                    
+                    <mongodb.updateOne configKey="MongoDB-Connection-Policy-API">
+                        <collection>policies</collection>
+                        <query>${vars.updateQuery}</query>
+                        <update>${vars.updateDoc}</update>
+                        <upsert>False</upsert>
+                        <collation></collation>
+                        <arrayFilters></arrayFilters>
+                        <responseVariable>update_result</responseVariable>
+                        <overwriteBody>false</overwriteBody>
+                    </mongodb.updateOne>
+                    
+                    <log category="INFO">
+                        <message>Email sent for policy: ${vars.policyId}</message>
+                    </log>
+                </sequence>
+            </foreach>
+        </then>
+        <else>
+            <log category="INFO">
+                <message>No new accepted policies found</message>
+            </log>
+        </else>
+    </filter>
+    
+    <drop/>
+</sequence>

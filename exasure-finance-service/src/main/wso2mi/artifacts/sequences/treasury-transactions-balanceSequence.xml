@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="treasury-transactions-balanceSequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="treasury-sapi-api" />
+        <with-param name="sequence" value="treasury-transactions-balanceSequence" />
+        <with-param name="level" value="INFO" />
+        <with-param name="message" value="Started treasury-transactions-balanceSequence" />
+        <with-param name="status" value="START" />
+    </call-template>
+    <payloadFactory media-type="json">
+    <format>
+        {"treasuryAccountId": "$1"}
+    </format>
+    <args>
+        <arg expression="get-property('treasuryAccountId')" evaluator="xml"/>
+    </args>
+</payloadFactory>
+<property name="mongoQuery" type="STRING" expression="json-eval($)"/>
+    <mongodb.find configKey="MongoDB-Connection-Treasury-SAPI-API">
+        <collection>treasury</collection>
+        <query>{$ctx:mongoQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <limit></limit>
+        <sort></sort>
+        <responseVariable>mongodb_find_511</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.find>
+    <property name="isFound" expression="json-eval($.found)" scope="default"/>
+    <filter xpath="$ctx:isFound = 'true'">
+    <then>
+        <log level="full">
+    <property name="Payload" expression="json-eval($)"/>
+</log>
+    </then>
+    <else>
+        <propertyGroup description="error details">
+            <property value="404" name="ERROR_CODE" scope="default" type="STRING"/>
+        <property name="HTTP_SC" value="404" scope="axis2"/>
+            <property value="data not found for given treasuryAccountId" name="ERROR_MESSAGE" scope="default" type="STRING"/>
+            <property value="Data not found for given treasuryAccountId in database" name="ERROR_DETAIL" scope="default" type="STRING"/>
+        </propertyGroup>
+        <sequence key="treasury-sapi-fault-sequence"/>
+        </else>
+</filter>
+<script language="js"><![CDATA[
+function normalize(obj){
+ for (var k in obj){
+   if (obj[k] && typeof obj[k] === 'object'){
+      if (obj[k].$date){
+         obj[k] = obj[k].$date;
+      } else {
+         normalize(obj[k]);
+      }
+   }
+ }
+}
+
+var payload = mc.getPayloadJSON() || {};
+var arr = payload.data || [];
+
+if(arr.length > 0){
+   var response = arr[0];
+   delete response._id;
+
+   normalize(response);
+
+   mc.setPayloadJSON(response);
+}
+]]></script>
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="treasury-sapi-api"/>
+    <with-param name="sequence" value="treasury-transactions-balanceSequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="Ended treasury-transactions-for-balanceSequence"/>
+    <with-param name="status" value="END"/>
+</call-template>
+</sequence>

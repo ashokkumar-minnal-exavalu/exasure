@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="billing-payment-papi-send-email-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="error-log">
+        <with-param name="service" value="billing-payment-papi"/>
+        <with-param name="sequence" value="billing-payment-papi-send-email-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating billing-payment-papi-send-email-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <email.send configKey="BillingPayment-Email-SMTPS-Connect">
+        <from>exavaluinsuranceaccelarator@gmail.com</from>
+        <personalName>Exasure Insurance</personalName>
+        <to>himasreean@gmail.com</to>
+        <cc></cc>
+        <bcc></bcc>
+        <replyTo></replyTo>
+        <subject>{$ctx:Email_Subject}</subject>
+        <content>{$ctx:Email_Body}</content>
+        <contentType>text/html</contentType>
+        <encoding>UTF-8</encoding>
+        <attachments></attachments>
+        <inlineImages>[]</inlineImages>
+        <contentTransferEncoding>Base64</contentTransferEncoding>
+        <responseVariable>email_send_1</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </email.send>
+
+    <call-template target="Common-Log-Template-V1" description="error-log">
+        <with-param name="service" value="billing-payment-papi"/>
+        <with-param name="sequence" value="billing-payment-papi-send-email-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value=" Ending billing-payment-papi-send-email-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

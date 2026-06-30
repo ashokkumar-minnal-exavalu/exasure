@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="general-ledger-sapi-get-GL-by-claimId-sequence" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="general-ledger-spi"/>
+        <with-param name="sequence" value="general-ledger-sapi-get-GL-by-claimId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Initiating general-ledger-sapi-get-GL-by-claimId-sequence for claimId- ', $ctx:uri.var.claimId)}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="updateQuery" expression="fn:concat('{&quot;claimId&quot;:&quot;', $ctx:claimId, '&quot;}')"/>
+    <mongodb.findOne configKey="WSO2-MongoDB-Connection">
+        <collection>GLclaims</collection>
+        <query>{$ctx:updateQuery}</query>
+        <projection></projection>
+        <collation></collation>
+        <responseVariable>quoteDetailsResult</responseVariable>
+        <overwriteBody>true</overwriteBody>
+    </mongodb.findOne>
+    
+    <filter source="json-eval($.found)" regex="true">
+        <then>
+            <!-- SUCCESS SCENARIO -->
+            <script language="js"><![CDATA[
+var response = mc.getPayloadJSON();
+
+// Ensure data object exists
+if (response && response.data) {
+
+    var dataObj = response.data;
+
+    // Remove _id if present
+    if (dataObj._id) {
+        delete dataObj._id;
+    }
+
+    // Set cleaned object as final payload
+    mc.setPayloadJSON(dataObj);
+}
+]]></script>
+        </then>
+        <else>
+            <!-- ERROR SCENARIO -->
+            <property name="messageType" value="application/json" scope="axis2"/>
+            <property name="HTTP_SC" value="404" scope="axis2"/>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "404",
+                    "errorMessage": "Data not found",
+                    "errorDetails": "GL claims not found for the given claimId.",
+                    "transactionId": "$1",
+                    "timeStamp": "$2"
+                    }
+                </format>
+                <args>
+                    <arg expression="get-property('correlation_id')"/>
+                    <arg expression="get-property('SYSTEM_DATE')"/>
+                </args>
+            </payloadFactory>
+        </else>
+    </filter>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="general-ledger-sapi"/>
+        <with-param name="sequence" value="general-ledger-sapi-get-GL-by-claimId-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Ending general-ledger-sapi-get-GL-by-claimId-sequence for claimId- ', $ctx:uri.var.claimId)}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="fraud-evaluation-sapi-create-fraud-check-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="fraud-evaluation-sapi"/>
+        <with-param name="sequence" value="fraud-evaluation-sapi-create-fraud-check-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Initiating fraud-evaluation-sapi-create-fraud-check-sequence for claimId- ', $ctx:uri.var.claimId)}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="claimId" expression="get-property('uri.var.claimId')" scope="default" type="STRING"/>
+    <property name="initPayload" expression="json-eval($)" scope="default" type="STRING"/>
+    <script language="js"><![CDATA[// Get payload as JSON
+var payload = mc.getPayloadJSON();
+
+// Get claimId from property (vars.claimId equivalent)
+var claimId = mc.getProperty("claimId");
+
+// Function to format date as yyyyMMddHHSSS
+function getFormattedTimestamp() {
+    var now = new Date();
+
+    function pad(n, width) {
+        n = n + '';
+        return n.length >= width ? n : new Array(width - n.length + 1).join('0') + n;
+    }
+
+    var year = now.getFullYear();
+    var month = pad(now.getMonth() + 1, 2);
+    var day = pad(now.getDate(), 2);
+    var hours = pad(now.getHours(), 2);
+
+    // NOTE: DataWeave uses SSS = milliseconds
+    var millis = pad(now.getMilliseconds(), 3);
+
+    return year + month + day + hours + millis;
+}
+
+// Generate timestamp
+var ts = getFormattedTimestamp();
+
+// Construct new fields
+var result = {};
+result.claimId = claimId;
+result.fraudCheckId = "FRDC-" + ts;
+
+// Merge payload into result
+for (var key in payload) {
+    if (payload.hasOwnProperty(key)) {
+        result[key] = payload[key];
+    }
+}
+
+// Set final payload
+mc.setPayloadJSON(result);]]></script>
+    <mongodb.insertOne configKey="WSO2-MongoDB-Connection">
+        <collection>fraudCheck</collection>
+        <document>{json-eval($)}</document>
+        <responseVariable>dbResult</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.insertOne>
+    <log level="full"/>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="fraud-evaluation-sapi"/>
+        <with-param name="sequence" value="fraud-evaluation-sapi-create-fraud-check-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{fn:concat('Ending fraud-evaluation-sapi-create-fraud-check-sequencee for claimId- ', $ctx:uri.var.claimId)}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <respond/>
+</sequence>

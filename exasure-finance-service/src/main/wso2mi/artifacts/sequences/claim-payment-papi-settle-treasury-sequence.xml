@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-settle-treasury-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+<property name="LatencyMs" value="0"/>
+  
+  <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-settle-treasury-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Initiating claim-payment-papi-settle-treasury-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <!-- GET current treasury data -->
+    <property name="HTTP_METHOD" value="GET" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" value="/treasury/transactions/TRS-000981" scope="axis2"/>
+
+    <call>
+        <endpoint key="treasury-sapi-restEndpoint"/>
+    </call>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>${payload}</message>
+    </log>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>${properties.synapse.initPayload}</message>
+    </log>
+    <property name="treasuryData" expression="json-eval($)" scope="default"/>
+    <!-- Build PATCH body -->
+    <script language="js"><![CDATA[var initPayload, treasuryData;
+try {
+    var ip = mc.getProperty("initialpayload");
+    initPayload  = (typeof ip === "string") ? JSON.parse(ip) : ip;
+    treasuryData = mc.getPayloadJSON(); // ← read GET response directly, no property needed
+} catch(e) {
+    throw new Error("Failed to parse properties: " + e.message);
+}
+
+var claimAmount = (initPayload && initPayload.payment && initPayload.payment.claimAmount)
+                  ? Number(initPayload.payment.claimAmount) : 0;
+
+var cashPos  = treasuryData && treasuryData.cashPosition;
+var totBal   = cashPos && cashPos.totalBalance;
+var oldTotal = totBal ? Number(totBal.amountValue) : 0;
+var currency = totBal ? totBal.currencyCode : "";
+
+var now = new Date().toISOString();
+
+var body = {
+    "reference": {},
+    "cashPosition": {
+        "previousBalance": {
+            "amountValue":  oldTotal,
+            "currencyCode": currency
+        },
+        "totalBalance": {
+            "amountValue":  Number((oldTotal - claimAmount).toFixed(2)),
+            "currencyCode": currency
+        }
+    },
+    "lastUpdatedDateTime": now,
+    "payoutDateTime":      now
+};
+
+mc.setPayloadJSON(body);]]></script>
+    <!-- PATCH treasury -->
+    <property name="HTTP_METHOD" value="PATCH" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" value="/treasury/transactions/claims" scope="axis2"/>
+
+    <call>
+      <endpoint key="treasury-sapi-restEndpoint"/>
+    </call>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+      <with-param name="service" value="claim-payment-sapi"/>
+      <with-param name="sequence" value="claim-payment-papi-settle-treasury-sequence"/>
+      <with-param name="level" value="INFO"/>
+      <with-param name="message" value="{${&quot;Ending claim-payment-papi-settle-treasury-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+      <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

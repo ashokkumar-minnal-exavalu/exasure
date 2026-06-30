@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-postReserve-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')"/>
+        <property name="reserveType" value="SALVAGE" scope="default" type="STRING"/>
+        <property name="setBy" value="ADJUSTER" scope="default" type="STRING"/>
+        <!-- Dynamic value from payload -->
+        <property name="reason" expression="json-eval($.inspectionFindings.damageDescription)" scope="default"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi"/>
+        <with-param name="sequence" value="claim-papi-postReserve-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Start claim-papi-postReserve-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <propertyGroup description="claimsCallProperties">
+        <property name="HTTP_METHOD" scope="axis2" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/claim/', get-property('claimId'))"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="claim-sapi-restEndpoint"/>
+    </call>
+    <property name="claimResponse" expression="json-eval($.data[0].claimRequest)"/>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>LOG-AfterClaimResponse</message>
+        <property name="CR" expression="get-property('claimResponse')"/>
+    </log>
+    <propertyGroup description="inspectionsCallProperties">
+        <property name="HTTP_METHOD" scope="axis2" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/api/claim/', get-property('claimId'), '/inspection-reports')"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="claim-assessment-sapi-restEndpoint"/>
+    </call>
+    <propertyGroup>
+        <property name="inspectionsResponse" expression="json-eval($)" scope="default"/>
+    </propertyGroup>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>LOG-AfterInspection</message>
+        <property name="IR" expression="get-property('inspectionsResponse')"/>
+    </log>
+    <propertyGroup description="lossitemsCallProperties">
+        <property name="HTTP_METHOD" scope="axis2" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/api/claim/', get-property('claimId'), '/loss-items')"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="claim-assessment-sapi-restEndpoint"/>
+    </call>
+    <property name="lossResponse" expression="json-eval($.data)" scope="default"/>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>LOG-AfterLossItem</message>
+        <property name="LossResponse" expression="get-property('lossResponse')"/>
+    </log>
+    <propertyGroup description="coverageCallProperties">
+        <property name="HTTP_METHOD" scope="axis2" value="GET"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/claim/', get-property('claimId'), '/coverages')"/>
+    </propertyGroup>
+    <call>
+        <endpoint key="claim-coverage-sapi-restEndpoint"/>
+    </call>
+    <propertyGroup>
+        <property name="coverageResponse" expression="json-eval($)" scope="default"/>
+    </propertyGroup>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>LOG-AfterCoverage</message>
+        <property name="coverageResponse" expression="get-property('coverageResponse')"/>
+    </log>
+    <script language="js"><![CDATA[
+
+// ---------- Utility: Normalize WSO2 property to proper JS object ----------
+function normalize(obj) {
+    if (obj == null) return null;
+
+    // If already JS object/array
+    if (typeof obj === "object" && !(obj instanceof java.lang.String)) {
+        return obj;
+    }
+
+    // Convert Java object or string → JSON
+    try {
+        return JSON.parse(String(obj));
+    } catch (e) {
+        return obj;
+    }
+}
+
+// ---------- Read and normalize properties ----------
+var claimsResponse      = normalize(mc.getProperty("claimResponse"));
+var inspectionsResponse = normalize(mc.getProperty("inspectionsResponse"));
+var lossitemsResponse   = normalize(mc.getProperty("lossResponse"));
+
+// ---------- Initialize ----------
+var valid = true;
+var error = null;
+
+// ---------- Extract first loss item ----------
+var lossItem = null;
+
+if (lossitemsResponse && lossitemsResponse.length > 0) {
+    lossItem = lossitemsResponse[0];
+}
+
+// ---------- Debug (very useful) ----------
+mc.setProperty("DEBUG_claimsResponse", JSON.stringify(claimsResponse));
+mc.setProperty("DEBUG_lossitemsResponse", JSON.stringify(lossitemsResponse));
+mc.setProperty("DEBUG_lossItem", JSON.stringify(lossItem));
+
+// ---------- 1. Claim status validation ----------
+if (claimsResponse &&
+   (claimsResponse.claimStatusCode === "REJECTED" ||
+    claimsResponse.claimStatusCode === "SETTLED" ||
+    claimsResponse.claimStatusCode === "COMPLETED")) {
+
+    valid = false;
+    error = "Reserve is not applicable for Rejected or settled or completed Claim";
+}
+
+// ---------- 2. LossItemIdentifier check ----------
+else if (!lossItem || !lossItem.lossItemIdentifier) {
+
+    valid = false;
+    error = "related LossItemIdentifier must exist under the claim for creating the reserve";
+}
+
+// ---------- 3. Loss status validation ----------
+else if (lossItem.lossStatus === "REJECTED" ||
+         lossItem.lossStatus === "CLOSED" ||
+         lossItem.lossStatus === "SETTLED") {
+
+    valid = false;
+    error = "The loss status must not be REJECTED, CLOSED, or SETTLED.";
+}
+
+// ---------- 4. Date validation ----------
+else if (lossItem.reportedDateTime && lossItem.incidentDateTime) {
+
+    var reportedDate = new Date(lossItem.reportedDateTime);
+    var incidentDate = new Date(lossItem.incidentDateTime);
+
+    if (reportedDate < incidentDate) {
+        valid = false;
+        error = "reserveEffectiveDate Cannot be before FNOL date";
+    }
+}
+
+// ---------- Final result ----------
+mc.setProperty("validationValid", valid);
+mc.setProperty("validationError", error);
+
+]]></script>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>LOG-AfterCoverage</message>
+        <property name="Valid1" expression="get-property('validationValid')"/>
+        <property name="Valid2" expression="get-property('validationError')"/>
+    </log>
+    <filter xpath="string($ctx:validationValid) = 'true'">        <!-- ✅ SUCCESS FLOW -->
+        <then>
+            <script language="js"><![CDATA[
+
+// ---------- Utility: Normalize WSO2 property to proper JS object ----------
+function normalize(obj) {
+    if (obj == null) return null;
+
+    if (typeof obj === "object" && !(obj instanceof java.lang.String)) {
+        return obj;
+    }
+
+    try {
+        return JSON.parse(String(obj));
+    } catch (e) {
+        return obj;
+    }
+}
+
+// ---------- Read and normalize properties ----------
+var claimResponse    = normalize(mc.getProperty("claimResponse"));
+var lossResponse     = normalize(mc.getProperty("lossResponse"));
+var coverageResponse = normalize(mc.getProperty("coverageResponse"));
+
+var reserveType = mc.getProperty("reserveType");
+var reason      = mc.getProperty("reason");
+var setBy       = mc.getProperty("setBy");
+
+// ---------- Extract loss item ----------
+var lossItem = null;
+
+if (lossResponse && lossResponse.length > 0) {
+    lossItem = lossResponse[0];
+}
+
+// ---------- Extract coverage item (FIXED) ----------
+var coverageItem = null;
+
+if (coverageResponse && coverageResponse.length > 0) {
+    coverageItem = coverageResponse[0];
+}
+
+// ---------- Extract limit amount (FIXED) ----------
+var limitAmount = null;
+
+if (coverageItem &&
+    coverageItem.coverages &&
+    coverageItem.coverages.length > 0 &&
+    coverageItem.coverages[0].limits &&
+    coverageItem.coverages[0].limits.length > 0) {
+
+    limitAmount = coverageItem.coverages[0].limits[0].limitAmount;
+}
+
+// ---------- Fallback handling for reason ----------
+if (!reason || reason === "") {
+    reason = "No reason provided";
+}
+
+// ---------- Construct final payload ----------
+var reserveRequest = {
+    reserveType: reserveType,
+    reserveCategory: claimResponse ? claimResponse.claimType : null,
+    reserveAmount: {
+        amount: limitAmount,
+        currency: lossItem ? lossItem.currencyCode : null
+    },
+    reason: reason,
+    reserveEffectiveDate: lossItem ? lossItem.reportedDateTime : null,
+    setBy: setBy,
+    relatedLossItemIdentifier: lossItem ? lossItem.lossItemIdentifier : null
+};
+
+// ---------- Set payload ----------
+mc.setPayloadJSON(reserveRequest);
+
+]]></script>
+            <propertyGroup description="reserveCallProperties">
+                <property name="HTTP_METHOD" scope="axis2" value="POST"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/api/claim/', get-property('claimId'), '/reserves')"/>
+            </propertyGroup>
+            <call>
+                <endpoint key="reserve-management-sapi-restEndpoint"/>
+            </call>
+            <log category="INFO" logMessageID="false" logFullPayload="false">
+                <message>LOG-AfterReserve</message>
+                <property name="reserveResponse" expression="json-eval($)"/>
+            </log>
+        </then>
+        <!-- ❌ ERROR FLOW -->
+        <else>
+            <!-- Set error properties -->
+            <property name="ERROR_CODE" value="400" scope="default"/>
+            <property name="ERROR_MESSAGE" expression="$ctx:validationError" scope="default"/>
+            <!-- Build error response -->
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "errorCode": "400",
+                    "errorMessage": "Bad Request $1",
+                    "errorDetails": "$1",
+                    "transactionId": "$2",
+                    "timeStamp": "$3"
+                    }
+                </format>
+                <args>
+                    <arg expression="$ctx:validationError"/>
+                    <arg expression="$ctx:CorrelationID"/>
+                    <arg expression="get-property('SYSTEM_TIME')"/>
+                </args>
+            </payloadFactory>
+            <!-- Optional: log -->
+            <log level="full">
+                <property name="ERROR" expression="$ctx:validationError"/>
+            </log>
+            <!-- Stop further processing -->
+            <respond/>
+        </else>
+    </filter>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi"/>
+        <with-param name="sequence" value="claim-papi-postReserve-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended claim-papi-postReserve-sequence"/>
+        <with-param name="status" value="End"/>
+    </call-template>
+</sequence>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="send-email-seq" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+     <call-template target="Common-Log-Template-V1" description="error-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="send-email-seq-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating send-email-seq"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <email.send configKey="sendEmail">
+        <from>exavaluinsuranceaccelarator@gmail.com</from>
+        <personalName>Exasure Insurance</personalName>
+        <to>ravi.ram6667@gmail.com</to>
+        <cc></cc>
+        <bcc></bcc>
+        <replyTo></replyTo>
+        <subject>{$ctx:Email_Subject}</subject>
+        <content>{$ctx:Email_Body}</content>
+        <contentType>text/html</contentType>
+        <encoding>UTF-8</encoding>
+        <attachments></attachments>
+        <inlineImages>[]</inlineImages>
+        <contentTransferEncoding>Base64</contentTransferEncoding>
+        <responseVariable>email_send_1</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </email.send>
+     <call-template target="Common-Log-Template-V1" description="error-log">
+        <with-param name="service" value="claim-api"/>
+        <with-param name="sequence" value="send-email-seq-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value=" Ending send-email-seq"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

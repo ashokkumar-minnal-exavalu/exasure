@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="fraud-evaluation-sapi-common-fault-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <variable name="errorMsg" expression="${'Error occurred in quote-sapi for quoteId- ' + params.pathParams.quoteId + ' errorMessage- ' + props.synapse.ERROR_MESSAGE + ' errorDetail- ' + props.synapse.ERROR_DETAIL + ' errorCode- ' + string(props.synapse.ERROR_CODE)}" type="STRING"/>
+    <call-template target="Common-Log-Template-V1" description="error-log">
+        <with-param name="service" value="quote-api"/>
+        <with-param name="sequence" value="quote-sapi-common-fault-sequence"/>
+        <with-param name="level" value="ERROR"/>
+        <with-param name="message" value="{${vars.errorMsg}}"/>
+        <with-param name="status" value="ERROR"/>
+    </call-template>
+    <payloadFactory description="error-payload" media-type="json" template-type="default">
+        <format>{
+            "errors": [
+            {
+            "errorMessage": "${properties.synapse.ERROR_MESSAGE}",
+            "errorDescription": "${properties.synapse.ERROR_DETAIL}",
+            "errorCode": "${properties.synapse.ERROR_CODE}"
+            }
+            ]
+            }</format>
+    </payloadFactory>
+    <filter xpath="boolean($axis2:HTTP_SC)">
+        <then>
+        </then>
+        <else>
+            <property description="Error code" name="HTTP_SC" scope="axis2" type="STRING" value="500"/>
+        </else>
+    </filter>
+    <respond/>
+</sequence>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-transaction-details-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+<property name="LatencyMs" value="0"/>
+
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="claim-payment-sapi"/>
+    <with-param name="sequence" value="claim-payment-papi-transaction-details-sequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="{${&quot;Initiating claim-payment-papi-transaction-details-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+    <with-param name="status" value="START"/>
+</call-template>
+    <property name="HTTP_METHOD" value="GET" scope="axis2"/>
+
+    <!-- Resolve URI with paymentId path param -->
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="fn:concat('/api/payment/retrive/',get-property('paymentId'))"/>
+
+    <call>
+        <endpoint key="claim-payment-sapi-restEndpoint"/>
+    </call>
+    <log category="INFO" logMessageID="false" logFullPayload="false">
+        <message>${payload}</message>
+    </log><!-- Store full response + status -->
+    <property name="paymentDetails" expression="json-eval($)" scope="default"/>
+    <property name="paymentStatus"
+              expression="json-eval($.transactionDetails.status)"
+              scope="default" type="STRING"/>
+
+    <log level="custom">
+      <property name="step"          value="retrieveTransactionDetails completed"/>
+      <property name="paymentStatus" expression="get-property('paymentStatus')"/>
+    </log>
+
+    <clone continueParent="true">
+      <target>
+        <sequence>
+                <sequence key="claim-payment-papi-response-log-sequence"/>
+            </sequence>
+        </target>
+    </clone>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-transaction-details-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Ending claim-payment-papi-transaction-details-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

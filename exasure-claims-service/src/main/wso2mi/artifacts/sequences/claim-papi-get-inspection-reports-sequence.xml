@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-papi-get-inspection-reports-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    
+    <property name="messageType" value="application/json" scope="axis2"/>
+    <property name="ContentType" value="application/json" scope="axis2"/>
+
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+        <property name="claimId" expression="get-property('uri.var.claimId')"/>
+    </propertyGroup>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi"/>
+        <with-param name="sequence" value="claim-papi-get-inspection-reports-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating get inspection reports for claimId"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <log level="custom">
+        <property name="claimId" expression="$ctx:claimId"/>
+        <property name="message" value="Preparing downstream request to claim-assessment-sapi"/>
+    </log>
+
+    <header name="client_id" scope="transport" value="client_id"/>
+    <header name="client_secret" scope="transport" value="client_secret"/>
+
+    <property name="REST_URL_POSTFIX"
+              expression="fn:concat('/api/claim/', $ctx:claimId, '/inspection-reports')"
+              scope="axis2"
+              type="STRING"/>
+
+    <log level="custom">
+        <property name="claimId" expression="$ctx:claimId"/>
+        <property name="REST_URL_POSTFIX" expression="$axis2:REST_URL_POSTFIX"/>
+    </log>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi"/>
+        <with-param name="sequence" value="claim-papi-get-inspection-reports-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Calling claim-assessment-sapi for inspection reports"/>
+        <with-param name="status" value="PROCESSING"/>
+    </call-template>
+
+    <call>
+        <endpoint key="claim-assessment-sapi-restEndpoint"/>
+    </call>
+
+    <log level="custom">
+        <property name="claimId" expression="$ctx:claimId"/>
+        <property name="downstreamResponse" expression="json-eval($.)"/>
+    </log>
+
+    <property name="LatencyMs"
+              expression="get-property('SYSTEM_TIME') - get-property('StartTime')"
+              scope="default"
+              type="STRING"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-papi"/>
+        <with-param name="sequence" value="claim-papi-get-inspection-reports-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Completed get inspection reports from claim-assessment-sapi"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+
+</sequence>

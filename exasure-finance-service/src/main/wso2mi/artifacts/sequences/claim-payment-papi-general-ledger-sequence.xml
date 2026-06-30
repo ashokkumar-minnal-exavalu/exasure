@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-general-ledger-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+<property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+<property name="LatencyMs" value="0"/>
+<call-template target="Common-Log-Template-V1">
+    <with-param name="service" value="claim-payment-sapi"/>
+    <with-param name="sequence" value="claim-payment-papi-general-ledger-sequence"/>
+    <with-param name="level" value="INFO"/>
+    <with-param name="message" value="{${&quot;Initiating claim-payment-papi-general-ledger-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+    <with-param name="status" value="START"/>
+</call-template>
+<script language="js"><![CDATA[
+      var paymentDetails = JSON.parse(mc.getProperty("paymentDetails"));
+      var paymentId      = mc.getProperty("paymentId") || "";
+
+      var rawDt   = (paymentDetails.transactionDetails && paymentDetails.transactionDetails.dateTime)
+                      ? paymentDetails.transactionDetails.dateTime : "";
+      var payDate = "";
+      if (rawDt) {
+        var parts = rawDt.split(/[\s\/\-]/);
+        payDate = parts[2] + "-" + parts[1] + "-" + parts[0];
+      }
+
+      var now = new Date().toISOString();
+      // paybleIdentifier = "PA" + UUID-like string
+      var payableId = "PA" + java.util.UUID.randomUUID().toString();
+
+      var body = {
+        "ledgerStatusCode":   "PAID",
+        "transactionID":      paymentId,
+        "paybleIdentifier":   payableId,
+        "paymentDate":        payDate,
+        "lastUpdatedDateTime":now,
+        "transactionTypeCode":"NEW_CLAIM",
+        "invoice": {
+          "invoiceId": ""
+        }
+      };
+      mc.setPayloadJSON(body);
+    ]]></script>
+
+    <log level="custom">
+      <property name="step"    value="generalLedgerFlow request"/>
+      <property name="payload" expression="json-eval($)"/>
+    </log>
+
+    <property name="REST_URL_POSTFIX" expression="fn:concat('/api/entries/claims/',get-property('claimId'))" scope="axis2"/>
+    <property name="HTTP_METHOD" value="PATCH" scope="axis2"/>
+
+    <call>
+      <endpoint key="general-ledger-sapi-restEndpoint"/>
+    </call>
+
+    <property name="glResponse" expression="json-eval($)" scope="default"/>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-general-ledger-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Ending claim-payment-papi-general-ledger-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<localEntry key="MongoDB-Connection-claim-payment" xmlns="http://ws.apache.org/ns/synapse">
+  <mongodb.init>
+    <connectionType>MONGODB</connectionType>
+    <inputType>Connection String URI</inputType>
+    <connectionURI>mongodb+srv://exavaluinsuranceaccelarator_db_user:6Hf5zmyBeHET8mOe@cluster0.5dortl1.mongodb.net/</connectionURI>
+    <database>WSO2_InsuranceAccelerator</database>
+    <name>MongoDB-Connection-claim-payment</name>
+  </mongodb.init>
+</localEntry>

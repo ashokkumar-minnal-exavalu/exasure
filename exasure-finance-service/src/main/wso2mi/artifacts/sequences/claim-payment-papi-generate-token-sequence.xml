@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="claim-payment-papi-generate-token-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    <property name="LatencyMs" value="0"/>
+    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-generate-token-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Initiating claim-payment-papi-generate-token-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="HTTP_METHOD" value="POST" scope="axis2"/>
+    <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" value="/api/payment/token"/>
+
+    <call>
+      <endpoint key="claim-payment-sapi-restEndpoint"/>
+    </call>
+    <!-- Store payoutDestinationId (equivalent of set-variable) -->
+    <property name="payoutDestinationId"
+              expression="json-eval($.payoutDestinationId)"
+              scope="default" type="STRING"/>
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-payment-sapi"/>
+        <with-param name="sequence" value="claim-payment-papi-generate-token-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Ending claim-payment-papi-generate-token-sequence for claimId: &quot; + properties.synapse.claimId}}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+    <clone continueParent="true">
+      <target>
+        <sequence>
+                <sequence key="claim-payment-papi-response-log-sequence"/>
+            </sequence>
+        </target>
+    </clone>
+</sequence>

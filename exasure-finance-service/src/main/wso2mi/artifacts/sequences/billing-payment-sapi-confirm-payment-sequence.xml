@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="billing-payment-sapi-confirm-payment-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+	<!-- ================= STORE REQUEST JSON ================= -->
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="billing-payment-sapi"/>
+        <with-param name="sequence" value="billing-payment-sapi-confirm-payment-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Initiating billing-payment-sapi-confirm-payment-sequence&quot; + params.pathParams.paymentIntentId}}"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <propertyGroup description="inputProperties">
+        <property name="initPayload" scope="default" type="STRING" expression="json-eval($)" action="set"/>
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+        <property name="REST_URL_POSTFIX" scope="axis2" type="STRING" expression="${&quot;/v1/payment_intents/&quot; + params.pathParams.paymentIntentId + &quot;/confirm&quot;}" action="set"/>
+        <property name="messageType" scope="axis2" value="application/x-www-form-urlencoded"/>
+        <property name="ContentType" scope="axis2" value="application/x-www-form-urlencoded"/>
+    </propertyGroup>
+    <script language="js"><![CDATA[
+        var initPayload = mc.getPayloadJSON();
+var payload = {
+	"payment_method": initPayload.payment_method,
+	"return_url": 'http://localhost:8081/api'
+};
+mc.setPayloadJSON(payload);
+ ]]></script>
+    <header name="Authorization" scope="transport" value="Bearer sk_test_51SdNv2Qsuyht91JMrQw97hGiY8ZGLbcdm0vdxQyd75JIqv0KX8n6I6oh9iec8Wu5VOO9OD6610K4ulsGAL6fwYSC00tKjpLaSa"/>
+    <header name="Client_Type" scope="transport" value="application/x-www-form-urlencoded"/>
+    <call>
+        <endpoint key="stripe-api-restEndpoint"/>
+    </call>
+    <filter xpath="${properties.axis2.HTTP_SC == 200}">
+        <then>
+            <script language="js"><![CDATA[var backendResponse = mc.getPayloadJSON();
+var initPayload = JSON.parse(mc.getProperty('initPayload'));
+var response = {
+  "paymentIntentid": backendResponse.id,
+  "transactionId": backendResponse.latest_charge,
+  "amount": (backendResponse.amount/100),
+  "currency": backendResponse.currency,
+  "capture_method": backendResponse.capture_method,
+  "confirmation_method": backendResponse.capture_method,
+  "created": ((new Date(Number(backendResponse.created) * 1000)).toISOString().split('.')[0] + "Z"),
+  "paymentMethod": backendResponse.payment_method,
+  "status": backendResponse.status
+}
+// Conditionally add fields if they exist
+if (initPayload.policyNumber != null && initPayload.policyNumber != undefined) {
+	response.policyNumber = initPayload.policyNumber;
+}
+
+if (initPayload.quoteId != null && initPayload.quoteId != undefined) {
+	response.quoteId = initPayload.quoteId;
+}        
+if (initPayload.partyIdentifier != null && initPayload.partyIdentifier != undefined) {
+	response.partyIdentifier = initPayload.partyIdentifier;
+}        
+  
+mc.setPayloadJSON(response);]]></script>
+        </then>
+ <else>
+            <variable name="errorMsg" expression="${'Error occurred in claim-sapi for quoteId- ' + params.pathParams.claimId + ' errorMessage- ' + props.synapse.ERROR_MESSAGE + ' errorDetail- ' + props.synapse.ERROR_DETAIL + ' errorCode- ' + string(props.synapse.ERROR_CODE)}" type="STRING"/>
+            <propertyGroup>
+                <property name="ERROR_MESSAGE" scope="default" type="STRING" expression="${payload.error.message}" action="set"/>
+                <property name="ERROR_DETAIL" scope="default" type="STRING" expression="${payload.error.message}" action="set"/>
+                <property name="ERROR_CODE" scope="default" type="STRING" expression="${properties.axis2.HTTP_SC}" action="set"/>
+            </propertyGroup>
+            <sequence key="billing-payment-sapi-common-fault-sequence"/>
+        </else>
+    </filter>
+	<call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="billing-payment-sapi"/>
+        <with-param name="sequence" value="billing-payment-sapi-store-payout-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="{${&quot;Ending billing-payment-sapi-confirm-payment-sequence&quot; + params.pathParams.paymentIntentId}}"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+	<respond/>
+</sequence>

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="get-assignment-papi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+	<call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="get-assignment-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Initiating get-assignment-papi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <property name="claimId" expression="get-property('uri.var.claimId')"/>
+
+    <!-- Start Log -->
+    <log level="custom">
+        <property name="INFO" value="Starting get_assignmentInfo_sequence"/>
+        <property name="claimId++++++++++" expression="$ctx:claimId"/>
+    </log>
+
+    <!-- First HTTP Call: Get Assignment Info -->
+    <propertyGroup description="inputProperty">
+        <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+        <property name="REST_URL_POSTFIX" expression="fn:concat('/claim/', $ctx:claimId, '/assign')"/>                
+    </propertyGroup>
+    <call>
+        <endpoint key="claim-assignment-sapi-restEndpoint"/>
+    </call>
+
+    <!-- Store response -->
+    <property name="assignmentInfo" expression="json-eval($)" scope="default" type="STRING"/>
+    <property name="httpStatusCode" expression="get-property('axis2','HTTP_SC')" scope="default"/>
+    <filter xpath="$ctx:httpStatusCode = 404">
+        <then>
+            <!-- Handle 404 case -->
+            <log level="custom">
+                <property name="ERROR" value="Resource not found (404)"/>
+            </log>
+
+            <payloadFactory media-type="json">
+                <format>
+                        $1
+                </format>
+                <args>
+                    <arg expression="$ctx:assignmentInfo"/>
+                </args>
+            </payloadFactory>
+
+            <respond/>
+        </then>
+        <else>
+            <!-- Extract adjusterId -->
+            <property name="adjusterId" expression="json-eval($.adjusterId)" scope="default"/>
+
+            <!-- Log adjusterId -->
+            <log level="custom">
+                <property name="adjusterId" expression="$ctx:adjusterId"/>
+            </log>
+
+            <!-- Second HTTP Call: Get Adjuster Info -->
+
+
+            <propertyGroup description="inputProperty">
+                <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+                <property name="REST_URL_POSTFIX" scope="axis2" expression="fn:concat('/api/adjusters/', $ctx:adjusterId)"/>                
+            </propertyGroup>
+            <call>
+                <endpoint key="claim-assignment-sapi-restEndpoint"/>
+            </call>
+
+            <!-- Store adjuster response -->
+            <property name="adjusterInfo" expression="json-eval($)" scope="default" type="STRING"/>
+            <log level="custom">
+                <property name="adjusterInfo++++++++++++" expression="json-eval($)" scope="default" type="STRING"/>
+            </log>
+            <!-- Transform (Merge दोनों responses) -->
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                        "assignment": $1,
+                        "adjuster": $2
+                    }
+                </format>
+                <args>
+                    <arg expression="$ctx:assignmentInfo"/>
+                    <arg expression="$ctx:adjusterInfo"/>
+                </args>
+            </payloadFactory>
+
+            <!-- End Log -->
+            <log level="full">
+                <property name="get assignment Final Response+++++++++++++++" value="Ending get_assignmentInfo_sequence"/>
+            </log>            
+        </else>
+    </filter>    
+    <!-- Log Assignment Info -->
+    <log level="custom">
+        <property name="Assignment details" expression="$ctx:assignmentInfo"/>
+    </log>
+
+
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>    
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="claim-assignment-api"/>
+        <with-param name="sequence" value="get-assignment-papi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended get-assignment-papi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="store-refund-sapi-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="refund-sapi-api"/>
+        <with-param name="sequence" value="store-refund-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started store-refund-sapi-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+
+    <!-- Capture full request body for MongoDB insert -->
+    <enrich>
+        <source clone="true" type="body"/>
+        <target property="requestPayload" type="property"/>
+    </enrich>
+
+    <!-- Extract refundId for response -->
+    <property name="refundId" expression="json-eval($.refundId)" scope="default"/>
+
+    <!-- Insert into MongoDB -->
+    <mongodb.insertOne configKey="WSO2-Accelerator-DB">
+        <collection>Refund</collection>
+        <document>{$ctx:requestPayload}</document>
+        <responseVariable>mongodb_insertOne_1</responseVariable>
+        <overwriteBody>false</overwriteBody>
+    </mongodb.insertOne>
+
+    <!-- Prepare Response -->
+    <payloadFactory media-type="json">
+        <format>
+            {
+                "refundId": "$1",
+                "message": "Refund store successfully"
+            }
+        </format>
+        <args>
+            <arg expression="$ctx:refundId"/>
+        </args>
+    </payloadFactory>
+
+    <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
+    <call-template target="Common-Log-Template-V1">
+        <with-param name="service" value="refund-sapi-api"/>
+        <with-param name="sequence" value="store-refund-sapi-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended store-refund-sapi-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>

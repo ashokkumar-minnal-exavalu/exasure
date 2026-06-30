@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="general-ledger-sapi-create-GL-sequence" trace="disable" xmlns="http://ws.apache.org/ns/synapse">
+    <propertyGroup description="apiProperty">
+        <property name="CorrelationID" expression="get-property('correlation_id')"/>
+        <property name="LatencyMs" scope="default" type="STRING" value="0"/>
+        <property name="StartTime" expression="get-property('SYSTEM_TIME')"/>
+    </propertyGroup>
+    <call-template target="Common-Log-Template-V1" description="start-log">
+        <with-param name="service" value="general-ledger-sapi"/>
+        <with-param name="sequence" value="general-ledger-sapi-create-GL-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Started general-ledger-sapi-create-GL-sequence"/>
+        <with-param name="status" value="START"/>
+    </call-template>
+    <switch source="json-eval($.reference.referenceTypeCode)">
+        <!-- Scenario 1 -->
+        <case regex="CLAIM_APPLICATION">
+            <mongodb.insertOne configKey="WSO2-MongoDB-Connection">
+                <collection>GLclaims</collection>
+                <document>{json-eval($)}</document>
+                <responseVariable>dbResult</responseVariable>
+                <overwriteBody>false</overwriteBody>
+            </mongodb.insertOne>
+            <!-- Your logic here -->
+        </case>
+        <!-- Scenario 2 (empty or null) -->
+        <case regex="^$">
+            <!-- Set HTTP Status Code -->
+            <property name="HTTP_SC" value="400" scope="axis2"/>
+            <!-- Optional: Stop further processing -->
+            <property name="NO_ENTITY_BODY" scope="axis2" action="remove"/>
+            <!-- Payload -->
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "timestamp": "$1",
+                    "status": 400,
+                    "error": "Bad Request",
+                    "message": "$2"
+                    }
+                </format>
+                <args>
+                    <arg evaluator="xml" expression="get-property('SYSTEM_DATE')"/>
+                    <arg evaluator="xml" expression="get-property('ERROR_MESSAGE')"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </case>
+        <!-- Default case -->
+        <default>
+            <mongodb.insertOne configKey="WSO2-MongoDB-Connection">
+                <collection>GLpolicy</collection>
+                <document>{json-eval($)}</document>
+                <responseVariable>dbResult</responseVariable>
+                <overwriteBody>false</overwriteBody>
+            </mongodb.insertOne>
+            <!-- Your logic here -->
+        </default>
+    </switch>
+    <call-template target="Common-Log-Template-V1" description="end-log">
+        <with-param name="service" value="general-ledger-sapi"/>
+        <with-param name="sequence" value="general-ledger-sapi-create-GL-sequence"/>
+        <with-param name="level" value="INFO"/>
+        <with-param name="message" value="Ended general-ledger-sapi-create-GL-sequence"/>
+        <with-param name="status" value="END"/>
+    </call-template>
+</sequence>
