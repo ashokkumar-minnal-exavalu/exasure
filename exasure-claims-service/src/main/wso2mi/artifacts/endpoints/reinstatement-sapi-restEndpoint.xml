@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<endpoint name="reinstatement-sapi-restEndpoint" xmlns="http://ws.apache.org/ns/synapse">
+    <address uri="${configs.REINSTATEMENT_SAPI_RESTENDPOINT_URI}">
+        <suspendOnFailure>
+            <initialDuration>-1</initialDuration>
+            <progressionFactor>1</progressionFactor>
+        </suspendOnFailure>
+        <markForSuspension>
+            <retriesBeforeSuspension>0</retriesBeforeSuspension>
+        </markForSuspension>
+    </address>
+</endpoint>

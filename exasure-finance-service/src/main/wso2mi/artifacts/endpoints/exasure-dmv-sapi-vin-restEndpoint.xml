@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<endpoint name="exasure-dmv-sapi-vin-restEndpoint" xmlns="http://ws.apache.org/ns/synapse">
+    <address uri="${configs.EXASURE_DMV_SAPI_VIN_RESTENDPOINT_URI}">
+        <suspendOnFailure>
+            <initialDuration>-1</initialDuration>
+            <progressionFactor>1</progressionFactor>
+        </suspendOnFailure>
+        <markForSuspension>
+            <retriesBeforeSuspension>0</retriesBeforeSuspension>
+        </markForSuspension>
+    </address>
+</endpoint>
