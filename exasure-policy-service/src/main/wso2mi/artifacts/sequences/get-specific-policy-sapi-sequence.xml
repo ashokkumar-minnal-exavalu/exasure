@@ -171,6 +171,7 @@
             <sequence key="policy-sapi-fault-sequence"/>
         </else>
     </filter>
+    <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
     <property name="LatencyMs" expression="get-property('SYSTEM_TIME') - get-property('StartTime')"/>
     <call-template target="Common-Log-Template-V1">
         <with-param name="service" value="policy-api"/>
